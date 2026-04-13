@@ -7,7 +7,7 @@ const { Customer, Ledger, Balance } = require("../model");
 const { checkUserPrivileges } = require("../utils/roles.utils");
 const mongoose = require("mongoose");
 const { updateBalances } = require("../services/balanceService");
-const { createLedgerHistory } = require("../services/historyService");
+const { createLedgerHistory, getLedgerStatement } = require("../services/historyService");
 
 // Create a new customer
 const createLedger = async (req, res) => {
@@ -78,12 +78,12 @@ const getAllLedger = async (req, res) => {
     let query = {
       status: { $ne: StatusEnum.DELETED }
     };
+    const data = await  getLedgerStatement(req);
+    // const ledgers = await Ledger.find(query)
+    //   .sort({ createdAt: -1 })
+    //   .lean();
 
-    const ledgers = await Ledger.find(query)
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return SUCCESS(res, ledgers);
+    return SUCCESS(res, data);
   } catch (e) {
     console.log(e);
     return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
