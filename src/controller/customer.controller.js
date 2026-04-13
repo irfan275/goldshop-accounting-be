@@ -11,7 +11,7 @@ const { validateCardExpiry } = require("../helper/common.helper");
 // Create a new customer
 const createCustomer = async (req, res) => {
   try {
-    const { email, name, phone, address,civilId,type,cardExpiry } = req.body;
+    const { name, phone, description,type } = req.body;
 
     // checkUserPrivileges(
     //   res,
@@ -21,7 +21,7 @@ const createCustomer = async (req, res) => {
     // );
 
     let customer = await Customer.findOne({
-      civilId: civilId,
+      phone: phone,
       status: { $ne: StatusEnum.DELETED },
     });
     if (customer) {
@@ -35,11 +35,8 @@ const createCustomer = async (req, res) => {
     const newCustomer = await Customer({
       name,
       phone,
-      email,
-      address,
-      civilId,
-      type,
-      cardExpiry
+      description,
+      type
     });
     updateUserDetails(req, newCustomer, true);
     const savedCustomer = await newCustomer.save();
@@ -96,7 +93,6 @@ const getAllCustomerByFilter = async (req, res) => {
       aggregateQuery.push({
         $addFields: {
           fullName: { $replaceAll: { input: "$name", find: " ", replacement: "" }},
-          civilIdStr: { $toString: "$civilId" },
           phoneStr: { $toString: "$phone" }
         }
       });
@@ -106,8 +102,7 @@ const getAllCustomerByFilter = async (req, res) => {
         $match: {
           $or: [
             { fullName: { $regex: cleanedSearch, $options: "i" } },
-            { phoneStr: { $regex: search, $options: "i" } },
-            { civilIdStr: { $regex: search, $options: "i" } }
+            { phoneStr: { $regex: search, $options: "i" } }
           ]
         }
       });

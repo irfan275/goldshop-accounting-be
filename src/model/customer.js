@@ -10,33 +10,16 @@ const CustomerSchema = new Schema({
         type: String,
         required: true,
     },
-    // lastName: {
-    //     type: String,
-    //     required: true,
-    // },
-    email: {
-        type: String,
-    },
     phone: {
         type: Number,
          required: true,
         
     },
-    civilId: {
-        type: Number,
-        unique: true,
-    },
     type: {
         type: String,
     },
-    cardExpiry: {
+    description: {
         type: String,
-    },
-    address: {
-        type: String,
-    },
-    cardImage: {
-        type: String, // You can store the URL of the image
     },
     status: {
         type: String,

@@ -3,33 +3,70 @@ const { StatusCode } = require("../constants/status.constant");
 const { StatusEnum, UserRoles } = require("../constants/user.constant");
 const { ERROR, SUCCESS } = require("../helper/response.helper");
 const { updateUserDetails } = require("../helper/db.helper");
-const { Customer, Ledger } = require("../model");
+const { Customer, Ledger, Balance } = require("../model");
 const { checkUserPrivileges } = require("../utils/roles.utils");
 const mongoose = require("mongoose");
-const { updateBalances } = require("./balanceService");
+const { updateBalances } = require("../services/balanceService");
+const { createLedgerHistory } = require("../services/historyService");
 
 // Create a new customer
 const createLedger = async (req, res) => {
+  let session;
   try {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     const { date, name, description, entries } = req.body;
 
-    const ledger = await Ledger.create({
+    // 1. Create ledger
+    const ledgerArr = await Ledger.create([{
       date,
       name,
       description,
-      entries
+      entries,
+      createdBy : req.user?._id
+    }], { session });
+
+    const ledger = ledgerArr[0];
+
+    // 2. Capture BEFORE balances
+    const balanceIds = entries.map(e => e.type);
+
+    const beforeBalances = await Balance.find({
+      _id: { $in: balanceIds }
+    }).session(session).lean();
+
+    // 3. Update balances (IMPORTANT: pass session)
+    await updateBalances(entries, session);
+
+    // 4. Create history (IMPORTANT: pass session)
+    await createLedgerHistory({
+      ledger,
+      entries,
+      userId: req.user?._id,
+      beforeBalances,
+      session
     });
 
-    await updateBalances(entries);
+    await session.commitTransaction();
+    session.endSession();
 
-    updateUserDetails(req, ledger, true);
-    const saved = await ledger.save();
+    return SUCCESS(res, ledger);
 
-    return SUCCESS(res, saved);
   } catch (e) {
     console.log(e);
+
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+
     return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
+  }
+  finally {
+    if (session) {
+      session.endSession(); // 👈 always clean up
+    }
   }
 };
 
@@ -172,7 +209,7 @@ const updateLedger = async (req, res) => {
     //     updatedData[key] = req.body[key];
     //   }
     // }
-    updateUserDetails(req, updatedData, false);
+    updateUserDetails(req, updatedData, true);
     updateBalances(updatedData);
     const updated = await Ledger.findByIdAndUpdate(
       req.params.id,

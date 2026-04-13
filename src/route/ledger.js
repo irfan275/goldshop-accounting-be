@@ -4,14 +4,14 @@ const {register_customer} = require('../validators/customer.validator');
 const {validate} = require('../validators/validate');
 
 const { authenticateToken } = require("../validators/middleware");
-const { createLedger, getLedgerById, updateLedger, deleteLedger, getAllCustomerByFilter } = require('../controller/ledger.controller');
+const { createLedger, getLedgerById, updateLedger, deleteLedger, getAllCustomerByFilter, getAllLedger } = require('../controller/ledger.controller');
 
 
 // Create a new Customer
 router.post('/', authenticateToken,createLedger);
 
 // Get all Customer
-router.get('/', authenticateToken,getAllCustomerByFilter);
+router.get('/', authenticateToken,getAllLedger);
 
 // Get a Customer by ID
 router.get('/:id', authenticateToken,getLedgerById);

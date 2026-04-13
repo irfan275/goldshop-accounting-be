@@ -6,6 +6,7 @@ const Schema = mongoose.Schema;
 const ObjectId = Schema.ObjectId;
 
 const BalanceSchema = new Schema({
+    _id : String,
     balance: { type:Number},
     grams: { type:Number},
     count: { type:Number},

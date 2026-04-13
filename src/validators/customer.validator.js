@@ -5,7 +5,6 @@ const { Messages } = require('../constants/message.constant')
   const register_customer = () => {
     return [
         body('name').exists(),
-        body('civilId').exists(),
         body('phone').exists(),
     ]
   }
