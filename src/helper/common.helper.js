@@ -52,9 +52,20 @@ const validateCardExpiry = async (dateStr) => {
 
   return expiryDate >= today;
 }
+const normalizeDate = (date) =>{
+  const d = new Date(date);
+
+  return new Date(Date.UTC(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate()
+  ));
+}
+
   module.exports = {
     compareObjectIdWithString,
     populateJobsName,
     getNextSequenceValue,
-    validateCardExpiry
+    validateCardExpiry,
+    normalizeDate
   }

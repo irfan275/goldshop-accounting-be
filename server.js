@@ -151,10 +151,10 @@ const runBackup = () => {
   });
 };
 // Runs at 10:00 PM every day
-cron.schedule('0 20 * * *', () => {
-  console.log('Running scheduled backup at 10 PM...');
-  runBackup();
-});
+// cron.schedule('0 20 * * *', () => {
+//   console.log('Running scheduled backup at 10 PM...');
+//   runBackup();
+// });
 
 app.get('/backup', (req, res) => {
   runBackup();

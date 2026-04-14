@@ -13,7 +13,7 @@ const EntrySchema = new Schema({
 });
 
 const LedgerSchema = new Schema({
-    date: {type:Date},
+    date: {type:String},
     name: {type:String},
     description: {type:String},
     entries: [EntrySchema],

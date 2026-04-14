@@ -3,17 +3,19 @@ const { StatusCode } = require("../constants/status.constant");
 const { StatusEnum, UserRoles } = require("../constants/user.constant");
 const { ERROR, SUCCESS } = require("../helper/response.helper");
 const { updateUserDetails } = require("../helper/db.helper");
-const { Customer, Ledger, Balance } = require("../model");
+const { Customer, Ledger, Balance, LedgerSnapshot } = require("../model");
 const { checkUserPrivileges } = require("../utils/roles.utils");
 const mongoose = require("mongoose");
 const { updateBalances } = require("../services/balanceService");
 const { createLedgerHistory, getLedgerStatement } = require("../services/historyService");
+const { normalizeDate } = require("../helper/common.helper");
+const { rebuildSnapshotsFrom } = require("../services/ledgerSnapshotService");
 
 // Create a new customer
 const createLedger = async (req, res) => {
   let session;
   try {
-    const session = await mongoose.startSession();
+    session = await mongoose.startSession();
     session.startTransaction();
 
     const { date, name, description, entries } = req.body;
@@ -48,9 +50,20 @@ const createLedger = async (req, res) => {
       session
     });
 
+    const entryDate = ledger.date;
+
+    //const normalizedDate = entryDate;
+
+
     await session.commitTransaction();
     session.endSession();
+    // 2. ❌ DELETE future snapshots
+    await LedgerSnapshot.deleteMany({
+      date: { $gte: entryDate },
+    });
 
+    // 3. ✅ REBUILD snapshots
+    await rebuildSnapshotsFrom(entryDate);
     return SUCCESS(res, ledger);
 
   } catch (e) {
