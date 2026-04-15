@@ -1,5 +1,5 @@
 
-const { Balance, LedgerHistory, Ledger } = require('../model');
+const { Balance, LedgerHistory, Ledger, LedgerSnapshot } = require('../model');
 
 async function createLedgerHistory({ ledger, entries, userId, beforeBalances,action,session }) {
 
@@ -54,85 +54,79 @@ async function createLedgerHistory({ ledger, entries, userId, beforeBalances,act
 }
 const getLedgerStatement = async (req) => {
   try {
-    const { fromDate, toDate } = req.query;
+    let { fromDate, toDate } = req.query;
 
-    let start = fromDate ? new Date(fromDate) : new Date();
-    let end = toDate ? new Date(toDate) : new Date();
-
-    // defaults
-    if (!fromDate) {
-      start.setDate(end.getDate() - 6);
+    // ✅ default last 7 days
+    if (!toDate) {
+      toDate = new Date().toLocaleDateString("en-CA");
     }
 
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    if (!fromDate) {
+      const d = new Date(toDate);
+      d.setDate(d.getDate() - 6);
+      fromDate = d.toLocaleDateString("en-CA");
+    }
 
     // 1. Fetch ledgers
     const ledgers = await Ledger.find({
-      date: { $gte: start, $lte: end }
+      date: { $gte: fromDate, $lte: toDate }
     })
       .sort({ date: 1, createdAt: 1 })
       .lean();
 
-    // 2. Fetch history
-    const history = await LedgerHistory.find({
-      createdAt: { $gte: start, $lte: end }
-    })
-      .sort({ createdAt: 1 })
-      .lean();
+    // 2. Fetch snapshots (for closing)
+    const snapshots = await LedgerSnapshot.find({
+      date: { $gte: fromDate, $lte: toDate }
+    }).lean();
 
-    // 3. Last history per date
-    const lastHistoryPerDate = {};
-    history.forEach(h => {
-      const key = formatDate(h.createdAt);
-      lastHistoryPerDate[key] = h;
+    const snapshotMap = {};
+    snapshots.forEach(s => {
+      snapshotMap[s.date] = s.balances;
     });
 
     const rows = [];
     let currentDate = null;
-
     let totals = resetTotals();
 
     for (let i = 0; i < ledgers.length; i++) {
-      const ledger = ledgers[i];
-      const dateKey = formatDate(ledger.date);
 
-      // reset when date changes
+      const ledger = ledgers[i];
+      const dateKey = ledger.date;
+
+      // 🔥 new date
       if (currentDate !== dateKey) {
         currentDate = dateKey;
         totals = resetTotals();
       }
-    let entriesTotals = resetTotals();
-      // entries
-    for (const entry of ledger.entries) {
-      updateTotals(entriesTotals, entry);
-      updateTotals(totals, entry);
-    }
 
-      //let entry = ledger.entries
-        rows.push({
-          isTotal: false,
-          date: dateKey,
-          customer: ledger.name,
-          description: ledger.description,
+      // 🔥 per-entry totals
+      let entryTotals = resetTotals();
 
-          // cash: buildCell(entry, 'cash'),
-          // gold: buildCell(entry, 'gold_raw'),
-          // bank: buildCell(entry, 'bank'),
-          // ttb: buildCell(entry, 'gold_bar_1tt')
-           cash: entriesTotals.cash,
-          gold: entriesTotals.gold,
-          bank: entriesTotals.bank,
-          ttb: entriesTotals.ttb
-        });
-     // }
+      for (const entry of ledger.entries) {
+        updateTotals(entryTotals, entry);
+        updateTotals(totals, entry);
+      }
 
-      // check last row of date
+      // 🔥 push entry row
+      rows.push({
+        isTotal: false,
+        date: dateKey,
+        customer: ledger.name,
+        description: ledger.description,
+
+        cash: entryTotals.cash,
+        gold: entryTotals.gold,
+        bank: entryTotals.bank,
+        ttb: entryTotals.ttb
+      });
+
+      // 🔥 check end of date
       const next = ledgers[i + 1];
-      const nextDate = next ? formatDate(next.date) : null;
+      const nextDate = next ? next.date : null;
 
       if (dateKey !== nextDate) {
-        const closing = extractClosing(lastHistoryPerDate[dateKey]);
+
+        const closing = snapshotMap[dateKey] || resetBalance();
 
         rows.push({
           isTotal: true,
@@ -141,9 +135,9 @@ const getLedgerStatement = async (req) => {
           description: 'TOTAL',
 
           cash: { ...totals.cash, closing: closing.cash },
-          gold: { ...totals.gold, closing: closing.gold },
+          gold: { ...totals.gold, closing: closing.gold_raw },
           bank: { ...totals.bank, closing: closing.bank },
-          ttb: { ...totals.ttb, closing: closing.ttb }
+          ttb: { ...totals.ttb, closing: closing.gold_bar }
         });
       }
     }
@@ -152,7 +146,6 @@ const getLedgerStatement = async (req) => {
 
   } catch (e) {
     console.log(e);
-    //return res.status(500).json({ message: 'Server Error' });
   }
 };
 function formatDate(date) {
@@ -167,7 +160,14 @@ function resetTotals() {
     ttb: { credit: 0, debit: 0 }
   };
 }
-
+function resetBalance() {
+  return {
+    cash: 0,
+    gold_raw: 0,
+    gold_bar: 0,
+    bank: 0
+  };
+}
 function updateTotals(totals, entry) {
   const map = {
     cash: 'cash',
@@ -183,6 +183,12 @@ function updateTotals(totals, entry) {
   totals[key].credit += entry.credit || 0;
   totals[key].debit += entry.debit || 0;
 }
+// function updateTotals(totals, entry) {
+//   if (!totals[entry.type]) return;
+
+//   totals[entry.type].credit += entry.credit || 0;
+//   totals[entry.type].debit += entry.debit || 0;
+// }
 
 function buildCell(entry, type) {
   if (entry.type !== type) return { credit: 0, debit: 0 };
