@@ -2,6 +2,7 @@ const { Balance } = require("../model");
 
 
 const GRAMS_PER_TTB = 116.64;
+const GRAMS_PER_KG = 116.64;
 
 const updateBalances = async (entries,session) => {
   for (const item of entries) {
@@ -26,12 +27,32 @@ const updateBalances = async (entries,session) => {
         { session }
       );
     }
+    else if (item.type === "silver_bar") {
+      const changeCount = (item.credit || 0) - (item.debit || 0);
+      const changeGrams = changeCount * GRAMS_PER_KG;
 
-    else if (item.type === "gold_raw") {
+      await Balance.updateOne(
+        { _id: "silver_bar_kg" },
+        {
+          $inc: { count: changeCount },
+          $setOnInsert: { gramsPerUnit: GRAMS_PER_KG }
+        },
+        { upsert: true },
+        { session }
+      );
+
+      await Balance.updateOne(
+        { _id: "silver_raw" },
+        { $inc: { grams: changeGrams } },
+        { upsert: true },
+        { session }
+      );
+    }
+    else if (item.type === "gold_raw" || item.type === 'silver_raw') {
       const change = (item.credit || 0) - (item.debit || 0);
 
       await Balance.updateOne(
-        { _id: "gold_raw" },
+        { _id: item.type },
         { $inc: { grams: change } },
         { upsert: true },
         { session }

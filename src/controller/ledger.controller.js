@@ -3,13 +3,14 @@ const { StatusCode } = require("../constants/status.constant");
 const { StatusEnum, UserRoles } = require("../constants/user.constant");
 const { ERROR, SUCCESS } = require("../helper/response.helper");
 const { updateUserDetails } = require("../helper/db.helper");
-const { Customer, Ledger, Balance, LedgerSnapshot } = require("../model");
+const { Customer, Ledger, Balance, LedgerSnapshot, Shop } = require("../model");
 const { checkUserPrivileges } = require("../utils/roles.utils");
 const mongoose = require("mongoose");
 const { updateBalances } = require("../services/balanceService");
 const { createLedgerHistory, getLedgerStatement } = require("../services/historyService");
 const { normalizeDate } = require("../helper/common.helper");
 const { rebuildSnapshotsFrom } = require("../services/ledgerSnapshotService");
+const Sequence = require("../model/sequence");
 
 // Create a new customer
 const createLedger = async (req, res) => {
@@ -18,13 +19,16 @@ const createLedger = async (req, res) => {
     session = await mongoose.startSession();
     session.startTransaction();
 
-    const { date, name, description, entries } = req.body;
+    const { date, name, description, entries, shop, goldRate,goldValue } = req.body;
 
     // 1. Create ledger
     const ledgerArr = await Ledger.create([{
       date,
       name,
       description,
+      shop,
+      goldRate,
+      goldValue,
       entries,
       createdBy : req.user?._id
     }], { session });
@@ -82,7 +86,90 @@ const createLedger = async (req, res) => {
     }
   }
 };
+// Update a customer by ID
+const updateLedger = async (req, res) => {
+  let session;
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
 
+
+    let query = { _id: req.params.id, status: { $ne: StatusEnum.DELETED } };
+    let ledger = await Ledger.findOne(query).lean();
+
+    if (!ledger) {
+      return ERROR(res, StatusCode.NOT_FOUND, Messages.LEDGER_NOT_FOUND);
+    }
+
+     let updatedData = req.body;
+
+    updateUserDetails(req, updatedData, true);
+    // 2. Capture BEFORE balances
+    const updatedLedger = await Ledger.findByIdAndUpdate(
+      req.params.id,
+      updatedData,
+      { new: true }
+    );
+    if (!updatedLedger) {
+      return ERROR(res, StatusCode.NOT_FOUND, Messages.LEDGER_NOT_FOUND);
+    }
+    ledger = await Ledger.findOne({ _id: updatedLedger._id })
+      .lean();
+    if(updatedData.entries.length > 0)
+    {
+        let entries = updatedData.entries
+        const balanceIds = entries.map(e => e.type);
+
+        const beforeBalances = await Balance.find({
+          _id: { $in: balanceIds }
+        }).session(session).lean();
+
+        // 3. Update balances (IMPORTANT: pass session)
+        await updateBalances(entries, session);
+
+        // 4. Create history (IMPORTANT: pass session)
+        await createLedgerHistory({
+          ledger,
+          entries,
+          userId: req.user?._id,
+          beforeBalances,
+          session
+        });
+
+        const entryDate = ledger.date;
+
+        //const normalizedDate = entryDate;
+
+
+        await session.commitTransaction();
+        session.endSession();
+        // 2. ❌ DELETE future snapshots
+        await LedgerSnapshot.deleteMany({
+          date: { $gte: entryDate },
+        });
+
+        // 3. ✅ REBUILD snapshots
+        await rebuildSnapshotsFrom(entryDate);
+    }
+    
+    return SUCCESS(res, ledger);
+
+  } catch (e) {
+    console.log(e);
+
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+
+    return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
+  }
+  finally {
+    if (session) {
+      session.endSession(); // 👈 always clean up
+    }
+  }
+};
 
 // Get all Customer
 const getAllLedger = async (req, res) => {
@@ -186,7 +273,7 @@ const getLedgerById = async (req, res) => {
     const ledger = await Ledger.findOne(query)
       .lean();
     if (!ledger) {
-      return ERROR(res, StatusCode.NOT_FOUND, Messages.USER_NOT_FOUND);
+      return ERROR(res, StatusCode.NOT_FOUND, Messages.LEDGER_NOT_FOUND);
     }
     return SUCCESS(res, ledger);
   } catch (e) {
@@ -194,60 +281,49 @@ const getLedgerById = async (req, res) => {
     return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
   }
 };
-// Update a customer by ID
-const updateLedger = async (req, res) => {
+// Get a customer by ID
+const getBalance = async (req, res) => {
   try {
+    const balances = await Balance.find({}).lean();
 
+    const result = {
+      cash:  0 ,
+      bank: 0 ,
+      gold_raw: 0 ,
+      gold_bar: 0 
+    };
 
-    let query = { _id: req.params.id, status: { $ne: StatusEnum.DELETED } };
-    let ledger = await Ledger.findOne(query).lean();
+    balances.forEach(b => {
+      switch (b._id) {
+        case "cash":
+          result.cash = b.balance;
+          break;
+        case "bank":
+          result.bank = b.balance;
+          break;
+        case "gold_raw":
+          result.gold_raw = b.grams;
+          break;
+        case "gold_bar_1tt":
+          result.gold_bar = b.count;
+          break;
+      }
+    });
 
-    if (!ledger) {
-      return ERROR(res, StatusCode.NOT_FOUND, Messages.USER_NOT_FOUND);
-    }
+    return res.json(result);
 
-     let updatedData = req.body;
-
-    // for (let key in req.body) {
-    //   // Check if the key exists in keysToCheck array
-    //   if (
-    //     [
-    //       "name",
-    //       "email",
-    //       "phone",
-    //        "civilId"
-    //     ].includes(key)
-    //   ) {
-    //     // Key exists in the array
-    //     updatedData[key] = req.body[key];
-    //   }
-    // }
-    updateUserDetails(req, updatedData, true);
-    updateBalances(updatedData);
-    const updated = await Ledger.findByIdAndUpdate(
-      req.params.id,
-      updatedData,
-      { new: true }
-    );
-    if (!updated) {
-      return ERROR(res, StatusCode.NOT_FOUND, Messages.USER_NOT_FOUND);
-    }
-    ledger = await Ledger.findOne({ _id: updated._id })
-      .lean();
-    return SUCCESS(res, ledger);
   } catch (e) {
-    console.log(e);
-    return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
+    console.error(e);
+    return res.status(500).json({ message: "Server Error" });
   }
 };
-
 // Delete a customer by ID
 const deleteLedger = async (req, res) => {
   try {
 
     const data = await Ledger.findByIdAndDelete(req.params.id);
     if (!data) {
-      return ERROR(res, StatusCode.NOT_FOUND, Messages.USER_NOT_FOUND);
+      return ERROR(res, StatusCode.NOT_FOUND, Messages.LEDGER_NOT_FOUND);
     }
     return SUCCESS(res, {}, "Ledger deleted successfully");
   } catch (e) {
@@ -255,7 +331,27 @@ const deleteLedger = async (req, res) => {
     return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
   }
 };
+const getInvoiceNumberForLedger = async (req, res) => {
 
+  try {
+    const shop = await Shop.findOne({_id : req.params.id, status : {$ne : StatusEnum.DELETED}}).lean();
+    let seqName = `LEG-${shop.shortName}`;
+    let sequence = await Sequence.findOne(
+      {name:seqName}
+    );
+    let sequenceNumber = !sequence? 0 : sequence.value;
+    res.json({ invoiceNumber : `${seqName}-${sequenceNumber+1}`
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      message: "Error",
+      error: error.message
+    });
+
+  }
+}
 
 module.exports = {
   createLedger,
@@ -263,5 +359,7 @@ module.exports = {
   deleteLedger,
   getAllLedger,
   getLedgerById,
-  getAllCustomerByFilter
+  getAllCustomerByFilter,
+  getInvoiceNumberForLedger,
+  getBalance
 };

@@ -13,6 +13,7 @@ const Messages = {
     MUST_BE_ARRAY: 'Roles must be an array',
     USER_ALREADY_EXIST : 'User already exist with this email',
     USER_NOT_FOUND : 'User not found',
+    LEDGER_NOT_FOUND : 'Ledger not found',
     CUSTOMER_ALREADY_EXIST: "Customer already exist with this number",
 
 };

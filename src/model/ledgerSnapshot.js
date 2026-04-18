@@ -8,6 +8,8 @@ const ledgerSnapshotSchema = new mongoose.Schema({
     cash: { type: Number, default: 0 },
     gold_raw: { type: Number, default: 0 },
     gold_bar: { type: Number, default: 0 },
+    silver_raw: { type: Number, default: 0 },
+    silver_bar: { type: Number, default: 0 },
     bank: { type: Number, default: 0 }
   }
 }, { timestamps: true, collection: 'LedgerSnapshot' });

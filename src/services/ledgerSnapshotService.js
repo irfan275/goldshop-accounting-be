@@ -14,6 +14,8 @@ const getOpeningBefore = async (date) =>{
     cash: 0,
     gold_raw: 0,
     gold_bar: 0,
+    silver_raw: 0,
+    silver_bar: 0,
     bank: 0
   };
 }

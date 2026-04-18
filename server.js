@@ -44,6 +44,7 @@ app.get("/", (req, res) => {
 var user_route = require('./src/route/user');
 var customer_route = require('./src/route/customer');
 var ledger_route = require('./src/route/ledger');
+var shop_route = require('./src/route/shop');
 
 const port = process.env.PORT || 3001;
 //const httpsPort = process.env.HTTPSPORT || 3005;
@@ -51,6 +52,7 @@ const basePath = '/api';
 app.use(basePath+'/user', user_route);
 app.use(basePath+'/customer', customer_route);
 app.use(basePath+'/ledger', ledger_route);
+app.use(basePath+'/shop', shop_route);
 // CONFIG
 const MONGO_URI = process.env.MONGO_URL;
 const DUMP_DIR = path.join(__dirname, 'dump');

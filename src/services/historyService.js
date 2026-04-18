@@ -1,4 +1,6 @@
 
+const { default: mongoose } = require('mongoose');
+const { StatusEnum } = require('../constants/user.constant');
 const { Balance, LedgerHistory, Ledger, LedgerSnapshot } = require('../model');
 
 async function createLedgerHistory({ ledger, entries, userId, beforeBalances,action,session }) {
@@ -54,7 +56,7 @@ async function createLedgerHistory({ ledger, entries, userId, beforeBalances,act
 }
 const getLedgerStatement = async (req) => {
   try {
-    let { fromDate, toDate } = req.query;
+    let { fromDate, toDate , invoiceNumber,customer} = req.query;
 
     // ✅ default last 7 days
     if (!toDate) {
@@ -66,11 +68,27 @@ const getLedgerStatement = async (req) => {
       d.setDate(d.getDate() - 6);
       fromDate = d.toLocaleDateString("en-CA");
     }
+    let query = {
+      status: { $ne: StatusEnum.DELETED }
+    };
+    if(req.user.role === 'EMPLOYEE')
+      {
+        query.shop= new mongoose.Types.ObjectId(String(req.user.shop));
+      }
+      // ✅ DATE FILTER (always applied)
+      query.date = { $gte: fromDate, $lte: toDate };
 
+      // ✅ INVOICE NUMBER (optional)
+      if (invoiceNumber) {
+        query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
+      }
+
+      // ✅ CUSTOMER (optional - partial match)
+      if (customer) {
+        query.name = { $regex: customer, $options: "i" };
+      }
     // 1. Fetch ledgers
-    const ledgers = await Ledger.find({
-      date: { $gte: fromDate, $lte: toDate }
-    })
+    const ledgers = await Ledger.find(query)
       .sort({ date: 1, createdAt: 1 })
       .lean();
 
@@ -111,13 +129,17 @@ const getLedgerStatement = async (req) => {
       rows.push({
         isTotal: false,
         date: dateKey,
+        id : ledger._id,
+        invoiceNumber : ledger.invoiceNumber,
         customer: ledger.name,
         description: ledger.description,
 
         cash: entryTotals.cash,
         gold: entryTotals.gold,
+        silver: entryTotals.silver,
         bank: entryTotals.bank,
-        ttb: entryTotals.ttb
+        ttb: entryTotals.ttb,
+        silver_bar: entryTotals.silver_bar
       });
 
       // 🔥 check end of date
@@ -137,7 +159,9 @@ const getLedgerStatement = async (req) => {
           cash: { ...totals.cash, closing: closing.cash },
           gold: { ...totals.gold, closing: closing.gold_raw },
           bank: { ...totals.bank, closing: closing.bank },
-          ttb: { ...totals.ttb, closing: closing.gold_bar }
+          ttb: { ...totals.ttb, closing: closing.gold_bar },
+          silver: { ...totals.silver, closing: closing.silver_raw },
+          kgb: { ...totals.silver_bar, closing: closing.silver_bar },
         });
       }
     }
@@ -156,8 +180,10 @@ function resetTotals() {
   return {
     cash: { credit: 0, debit: 0 },
     gold: { credit: 0, debit: 0 },
+    silver: { credit: 0, debit: 0 },
     bank: { credit: 0, debit: 0 },
-    ttb: { credit: 0, debit: 0 }
+    ttb: { credit: 0, debit: 0 },
+    silver_bar: { credit: 0, debit: 0 },
   };
 }
 function resetBalance() {
@@ -165,6 +191,8 @@ function resetBalance() {
     cash: 0,
     gold_raw: 0,
     gold_bar: 0,
+    silver_raw: 0,
+    silver_bar: 0,
     bank: 0
   };
 }
@@ -172,11 +200,14 @@ function updateTotals(totals, entry) {
   const map = {
     cash: 'cash',
     gold_raw: 'gold',
+    silver_raw: 'silver',
     bank: 'bank',
-    gold_bar_1tt: 'ttb'
+    gold_bar_1tt: 'ttb',
+    silver_bar_kg: 'silver_bar'
   };
-  if(entry.type === 'gold_bar')
+  if(entry.type === 'gold_bar' || entry.type === 'silver_bar')
     entry.type= `${entry.type+"_"+entry.subType}`;
+  
   const key = map[entry.type];
   if (!key) return;
 
