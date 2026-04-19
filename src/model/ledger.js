@@ -11,7 +11,9 @@ const EntrySchema = new Schema({
   subType: String,
   unit: String,
   credit: Number,
-  debit: Number
+  debit: Number,
+    rate: {type : Number},
+    value: {type : Number}
 });
 
 const LedgerSchema = new Schema({
@@ -23,8 +25,6 @@ const LedgerSchema = new Schema({
     name: {type:String},
     description: {type:String},
     entries: [EntrySchema],
-    goldRate: {type : Number},
-    goldValue: {type : Number},
     silverRate: {type : Number},
     silverValue: {type : Number},
     shop : {
