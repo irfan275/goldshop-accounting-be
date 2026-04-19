@@ -19,7 +19,7 @@ const createLedger = async (req, res) => {
     session = await mongoose.startSession();
     session.startTransaction();
 
-    const { date, name, description, entries, shop, goldRate,goldValue } = req.body;
+    const { date, name, description, entries, shop } = req.body;
 
     // 1. Create ledger
     const ledgerArr = await Ledger.create([{
@@ -27,8 +27,6 @@ const createLedger = async (req, res) => {
       name,
       description,
       shop,
-      goldRate,
-      goldValue,
       entries,
       createdBy : req.user?._id
     }], { session });
