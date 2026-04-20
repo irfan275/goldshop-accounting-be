@@ -91,7 +91,7 @@ const updateLedger = async (req, res) => {
     session = await mongoose.startSession();
     session.startTransaction();
 
-
+    const id = req.params.id;
     let query = { _id: req.params.id, status: { $ne: StatusEnum.DELETED } };
     let ledger = await Ledger.findOne(query).lean();
 
@@ -100,7 +100,20 @@ const updateLedger = async (req, res) => {
     }
 
      let updatedData = req.body;
+    if(updatedData.entries.length > 0){
+      // 1. Get old ledger
+        const oldLedger = await Ledger.findById(id).session(session);
 
+        // 2. Reverse old balances
+        const reverseEntries = oldLedger.entries.map(e => ({
+          type: e.type,
+          credit: e.debit || 0,
+          debit: e.credit || 0
+        }));
+
+        await updateBalances(reverseEntries, session);
+
+    }
     updateUserDetails(req, updatedData, true);
     // 2. Capture BEFORE balances
     const updatedLedger = await Ledger.findByIdAndUpdate(
@@ -116,8 +129,7 @@ const updateLedger = async (req, res) => {
     if(updatedData.entries.length > 0)
     {
         let entries = updatedData.entries
-        const balanceIds = entries.map(e => e.type);
-
+         const balanceIds = entries.map(e => e.type);
         const beforeBalances = await Balance.find({
           _id: { $in: balanceIds }
         }).session(session).lean();
@@ -288,7 +300,9 @@ const getBalance = async (req, res) => {
       cash:  0 ,
       bank: 0 ,
       gold_raw: 0 ,
-      gold_bar: 0 
+      gold_bar: 0 ,
+      silver_raw: 0 ,
+      silver_bar: 0 
     };
 
     balances.forEach(b => {
@@ -304,6 +318,12 @@ const getBalance = async (req, res) => {
           break;
         case "gold_bar_1tt":
           result.gold_bar = b.count;
+          break;
+        case "silver_raw":
+          result.silver_raw = b.grams;
+          break;
+        case "silver_bar_kg":
+          result.silver_bar = b.count;
           break;
       }
     });

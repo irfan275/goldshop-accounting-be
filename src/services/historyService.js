@@ -161,7 +161,7 @@ const getLedgerStatement = async (req) => {
           bank: { ...totals.bank, closing: closing.bank },
           ttb: { ...totals.ttb, closing: closing.gold_bar },
           silver: { ...totals.silver, closing: closing.silver_raw },
-          kgb: { ...totals.silver_bar, closing: closing.silver_bar },
+          silver_bar: { ...totals.silver_bar, closing: closing.silver_bar },
         });
       }
     }
