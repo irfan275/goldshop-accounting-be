@@ -25,8 +25,10 @@ const LedgerSchema = new Schema({
     name: {type:String},
     description: {type:String},
     entries: [EntrySchema],
-    silverRate: {type : Number},
-    silverValue: {type : Number},
+    isOfficial: {
+    type: Boolean,
+    default: true
+    },
     shop : {
         type : ObjectId,
         ref : 'Shop'

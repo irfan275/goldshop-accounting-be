@@ -133,6 +133,7 @@ const getLedgerStatement = async (req) => {
         invoiceNumber : ledger.invoiceNumber,
         customer: ledger.name,
         description: ledger.description,
+        isOfficial: ledger.isOfficial,
 
         cash: entryTotals.cash,
         gold: entryTotals.gold,
