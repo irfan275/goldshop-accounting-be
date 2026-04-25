@@ -5,3 +5,4 @@ module.exports.Ledger = require('./ledger');
 module.exports.Balance = require('./balance');
 module.exports.LedgerHistory = require('./ledgerHistory');
 module.exports.LedgerSnapshot = require('./ledgerSnapshot');
+module.exports.Bank = require('./bank');

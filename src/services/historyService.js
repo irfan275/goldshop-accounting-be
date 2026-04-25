@@ -56,9 +56,8 @@ async function createLedgerHistory({ ledger, entries, userId, beforeBalances,act
 }
 const getLedgerStatement = async (req) => {
   try {
-    let { fromDate, toDate , invoiceNumber,customer} = req.query;
+    let { fromDate, toDate, invoiceNumber, customer } = req.query;
 
-    // ✅ default last 7 days
     if (!toDate) {
       toDate = new Date().toLocaleDateString("en-CA");
     }
@@ -68,31 +67,29 @@ const getLedgerStatement = async (req) => {
       d.setDate(d.getDate() - 6);
       fromDate = d.toLocaleDateString("en-CA");
     }
+
     let query = {
       status: { $ne: StatusEnum.DELETED }
     };
-    if(req.user.role === 'EMPLOYEE')
-      {
-        query.shop= new mongoose.Types.ObjectId(String(req.user.shop));
-      }
-      // ✅ DATE FILTER (always applied)
-      query.date = { $gte: fromDate, $lte: toDate };
 
-      // ✅ INVOICE NUMBER (optional)
-      if (invoiceNumber) {
-        query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
-      }
+    if (req.user.role === 'EMPLOYEE') {
+      query.shop = new mongoose.Types.ObjectId(String(req.user.shop));
+    }
 
-      // ✅ CUSTOMER (optional - partial match)
-      if (customer) {
-        query.name = { $regex: customer, $options: "i" };
-      }
-    // 1. Fetch ledgers
+    query.date = { $gte: fromDate, $lte: toDate };
+
+    if (invoiceNumber) {
+      query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
+    }
+
+    if (customer) {
+      query.name = { $regex: customer, $options: "i" };
+    }
+
     const ledgers = await Ledger.find(query)
       .sort({ date: 1, createdAt: 1 })
       .lean();
 
-    // 2. Fetch snapshots (for closing)
     const snapshots = await LedgerSnapshot.find({
       date: { $gte: fromDate, $lte: toDate }
     }).lean();
@@ -107,17 +104,15 @@ const getLedgerStatement = async (req) => {
     let totals = resetTotals();
 
     for (let i = 0; i < ledgers.length; i++) {
-
       const ledger = ledgers[i];
       const dateKey = ledger.date;
 
-      // 🔥 new date
+      // new date reset
       if (currentDate !== dateKey) {
         currentDate = dateKey;
         totals = resetTotals();
       }
 
-      // 🔥 per-entry totals
       let entryTotals = resetTotals();
 
       for (const entry of ledger.entries) {
@@ -125,12 +120,14 @@ const getLedgerStatement = async (req) => {
         updateTotals(totals, entry);
       }
 
-      // 🔥 push entry row
+      // ======================
+      // NORMAL ROW
+      // ======================
       rows.push({
         isTotal: false,
         date: dateKey,
-        id : ledger._id,
-        invoiceNumber : ledger.invoiceNumber,
+        id: ledger._id,
+        invoiceNumber: ledger.invoiceNumber,
         customer: ledger.name,
         description: ledger.description,
         isOfficial: ledger.isOfficial,
@@ -138,18 +135,26 @@ const getLedgerStatement = async (req) => {
         cash: entryTotals.cash,
         gold: entryTotals.gold,
         silver: entryTotals.silver,
-        bank: entryTotals.bank,
         ttb: entryTotals.ttb,
-        silver_bar: entryTotals.silver_bar
+        silver_bar: entryTotals.silver_bar,
+
+        bank: entryTotals.bank,
+
+        // flat dynamic banks
+        ...Object.fromEntries(
+          Object.entries(entryTotals)
+            .filter(([k]) => k.startsWith("bank_"))
+        )
       });
 
-      // 🔥 check end of date
+      // ======================
+      // TOTAL ROW
+      // ======================
       const next = ledgers[i + 1];
       const nextDate = next ? next.date : null;
 
       if (dateKey !== nextDate) {
-
-        const closing = snapshotMap[dateKey] || resetBalance();
+        const closing = snapshotMap[dateKey] || resetTotals();
 
         rows.push({
           isTotal: true,
@@ -163,6 +168,20 @@ const getLedgerStatement = async (req) => {
           ttb: { ...totals.ttb, closing: closing.gold_bar },
           silver: { ...totals.silver, closing: closing.silver_raw },
           silver_bar: { ...totals.silver_bar, closing: closing.silver_bar },
+
+          // 🔥 ONLY ADDITION (dynamic banks, same structure style)
+          ...Object.fromEntries(
+            Object.keys(totals)
+              .filter(k => k.startsWith("bank_"))
+              .map(k => [
+                k,
+                {
+                  credit: totals[k].credit,
+                  debit: totals[k].debit,
+                  closing: closing[k] || { credit: 0, debit: 0 }
+                }
+              ])
+          )
         });
       }
     }
@@ -173,6 +192,125 @@ const getLedgerStatement = async (req) => {
     console.log(e);
   }
 };
+// const getLedgerStatement = async (req) => {
+//   try {
+//     let { fromDate, toDate , invoiceNumber,customer} = req.query;
+
+//     // ✅ default last 7 days
+//     if (!toDate) {
+//       toDate = new Date().toLocaleDateString("en-CA");
+//     }
+
+//     if (!fromDate) {
+//       const d = new Date(toDate);
+//       d.setDate(d.getDate() - 6);
+//       fromDate = d.toLocaleDateString("en-CA");
+//     }
+//     let query = {
+//       status: { $ne: StatusEnum.DELETED }
+//     };
+//     if(req.user.role === 'EMPLOYEE')
+//       {
+//         query.shop= new mongoose.Types.ObjectId(String(req.user.shop));
+//       }
+//       // ✅ DATE FILTER (always applied)
+//       query.date = { $gte: fromDate, $lte: toDate };
+
+//       // ✅ INVOICE NUMBER (optional)
+//       if (invoiceNumber) {
+//         query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
+//       }
+
+//       // ✅ CUSTOMER (optional - partial match)
+//       if (customer) {
+//         query.name = { $regex: customer, $options: "i" };
+//       }
+//     // 1. Fetch ledgers
+//     const ledgers = await Ledger.find(query)
+//       .sort({ date: 1, createdAt: 1 })
+//       .lean();
+
+//     // 2. Fetch snapshots (for closing)
+//     const snapshots = await LedgerSnapshot.find({
+//       date: { $gte: fromDate, $lte: toDate }
+//     }).lean();
+
+//     const snapshotMap = {};
+//     snapshots.forEach(s => {
+//       snapshotMap[s.date] = s.balances;
+//     });
+
+//     const rows = [];
+//     let currentDate = null;
+//     let totals = resetTotals();
+
+//     for (let i = 0; i < ledgers.length; i++) {
+
+//       const ledger = ledgers[i];
+//       const dateKey = ledger.date;
+
+//       // 🔥 new date
+//       if (currentDate !== dateKey) {
+//         currentDate = dateKey;
+//         totals = resetTotals();
+//       }
+
+//       // 🔥 per-entry totals
+//       let entryTotals = resetTotals();
+
+//       for (const entry of ledger.entries) {
+//         updateTotals(entryTotals, entry);
+//         updateTotals(totals, entry);
+//       }
+
+//       // 🔥 push entry row
+//       rows.push({
+//         isTotal: false,
+//         date: dateKey,
+//         id : ledger._id,
+//         invoiceNumber : ledger.invoiceNumber,
+//         customer: ledger.name,
+//         description: ledger.description,
+//         isOfficial: ledger.isOfficial,
+
+//         cash: entryTotals.cash,
+//         gold: entryTotals.gold,
+//         silver: entryTotals.silver,
+//         bank: entryTotals.bank,
+//         ttb: entryTotals.ttb,
+//         silver_bar: entryTotals.silver_bar
+//       });
+
+//       // 🔥 check end of date
+//       const next = ledgers[i + 1];
+//       const nextDate = next ? next.date : null;
+
+//       if (dateKey !== nextDate) {
+
+//         const closing = snapshotMap[dateKey] || resetBalance();
+
+//         rows.push({
+//           isTotal: true,
+//           date: dateKey,
+//           customer: '',
+//           description: 'TOTAL',
+
+//           cash: { ...totals.cash, closing: closing.cash },
+//           gold: { ...totals.gold, closing: closing.gold_raw },
+//           bank: { ...totals.bank, closing: closing.bank },
+//           ttb: { ...totals.ttb, closing: closing.gold_bar },
+//           silver: { ...totals.silver, closing: closing.silver_raw },
+//           silver_bar: { ...totals.silver_bar, closing: closing.silver_bar },
+//         });
+//       }
+//     }
+
+//     return rows;
+
+//   } catch (e) {
+//     console.log(e);
+//   }
+// };
 function formatDate(date) {
   return new Date(date).toISOString().split('T')[0];
 }
@@ -198,22 +336,55 @@ function resetBalance() {
   };
 }
 function updateTotals(totals, entry) {
+  let type = entry.type;
+
+  // normalize type (avoid mutation)
+  if (type === 'gold_bar' || type === 'silver_bar') {
+    type = `${type}_${entry.subType}`;
+  }
+
   const map = {
     cash: 'cash',
     gold_raw: 'gold',
     silver_raw: 'silver',
-    bank: 'bank',
     gold_bar_1tt: 'ttb',
     silver_bar_kg: 'silver_bar'
   };
-  if(entry.type === 'gold_bar' || entry.type === 'silver_bar')
-    entry.type= `${entry.type+"_"+entry.subType}`;
-  
-  const key = map[entry.type];
+
+  const credit = Number(entry.credit || 0);
+  const debit = Number(entry.debit || 0);
+
+  // ✅ BANK HANDLING (flat structure)
+  if (type.startsWith('bank_')) {
+    // 1. individual bank (flat key)
+    if (!totals[type]) {
+      totals[type] = { credit: 0, debit: 0 };
+    }
+
+    totals[type].credit += credit;
+    totals[type].debit += debit;
+
+    // 2. overall bank total
+    if (!totals.bank) {
+      totals.bank = { credit: 0, debit: 0 };
+    }
+
+    totals.bank.credit += credit;
+    totals.bank.debit += debit;
+
+    return;
+  }
+
+  // ✅ other categories
+  const key = map[type];
   if (!key) return;
 
-  totals[key].credit += entry.credit || 0;
-  totals[key].debit += entry.debit || 0;
+  if (!totals[key]) {
+    totals[key] = { credit: 0, debit: 0 };
+  }
+
+  totals[key].credit += credit;
+  totals[key].debit += debit;
 }
 // function updateTotals(totals, entry) {
 //   if (!totals[entry.type]) return;

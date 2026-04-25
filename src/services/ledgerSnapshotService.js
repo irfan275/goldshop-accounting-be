@@ -2,59 +2,89 @@ const { normalizeDate } = require("../helper/common.helper");
 const { LedgerSnapshot, Ledger } = require("../model");
 
 
-const getOpeningBefore = async (date) =>{
+const getOpeningBefore = async (date) => {
   const snapshot = await LedgerSnapshot.findOne({
     date: { $lt: date },
   }).sort({ date: -1 });
 
-  if (snapshot) return { ...snapshot.balances };
+  if (!snapshot) return {};
 
-  // default if no snapshot
-  return {
-    cash: 0,
-    gold_raw: 0,
-    gold_bar: 0,
-    silver_raw: 0,
-    silver_bar: 0,
-    bank: 0
-  };
-}
-const rebuildSnapshotsFrom = async (startDate) => {
+  const balances = {};
 
-  const start = startDate; // already "YYYY-MM-DD"
-
-  // 1. Opening balance
-  let runningBalance = await getOpeningBefore(start);
-
-  // 2. Fetch entries
-  const entries = await Ledger.find({
-    date: { $gte: start },
-  }).sort({ date: 1 });
-
-  // 3. Group by string date
-  const grouped = {};
-
-  entries.forEach((entry) => {
-    const d = entry.date; // already string
-
-    if (!grouped[d]) grouped[d] = [];
-    grouped[d].push(entry);
+  snapshot.balances.forEach((value, key) => {
+    balances[key] = value || 0;
   });
 
-  // 4. Sort dates correctly
-  const sortedDates = Object.keys(grouped).sort(); // works for YYYY-MM-DD
+  return balances;
+};
+const rebuildSnapshotsFrom = async (startDate) => {
+
+  let runningBalance = await getOpeningBefore(startDate);
+
+  const entries = await Ledger.find({
+    date: { $gte: startDate },
+  }).sort({ date: 1 });
+
+  // group by date
+  const grouped = {};
+
+  for (const entry of entries) {
+    if (!grouped[entry.date]) grouped[entry.date] = [];
+    grouped[entry.date].push(entry);
+  }
+
+  const sortedDates = Object.keys(grouped).sort();
 
   for (const dateKey of sortedDates) {
 
     const dayEntries = grouped[dateKey];
 
-    dayEntries.forEach((entry) => {
-      entry.entries.forEach((e) => {
-        runningBalance[e.type] += (e.credit || 0) - (e.debit || 0);
-      });
-    });
+    for (const ledger of dayEntries) {
+      for (const e of ledger.entries) {
 
-    // 5. Save snapshot (STRING DATE — FIXED)
+        let type = e.type;
+
+        // normalize bar types
+        if (type === 'gold_bar' || type === 'silver_bar') {
+          type = `${type}_${e.subType}`;
+        }
+
+        const amount = Number(e.credit || 0) - Number(e.debit || 0);
+
+        // =========================
+        // 🔥 BANK HANDLING (IMPORTANT)
+        // =========================
+        if (type.startsWith("bank_")) {
+
+          // total bank
+          if (runningBalance.bank === undefined) {
+            runningBalance.bank = 0;
+          }
+          runningBalance.bank += amount;
+
+          // individual bank
+          if (runningBalance[type] === undefined) {
+            runningBalance[type] = 0;
+          }
+          runningBalance[type] += amount;
+
+          continue;
+        }
+
+        // =========================
+        // NORMAL TYPES
+        // =========================
+        if (runningBalance[type] === undefined) {
+          runningBalance[type] = 0;
+        }
+
+        runningBalance[type] += amount;
+      }
+    }
+
+    // =========================
+    // SAVE SNAPSHOT
+    // =========================
     await LedgerSnapshot.findOneAndUpdate(
       { date: dateKey },
       {
