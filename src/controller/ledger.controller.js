@@ -298,33 +298,59 @@ const getBalance = async (req, res) => {
     const balances = await Balance.find({}).lean();
 
     const result = {
-      cash:  0 ,
-      bank: 0 ,
-      gold_raw: 0 ,
-      gold_bar: 0 ,
-      silver_raw: 0 ,
-      silver_bar: 0 
+      cash: 0,
+      bank: 0,
+      gold_raw: 0,
+      gold_bar: 0,
+      silver_raw: 0,
+      silver_bar: 0
     };
 
     balances.forEach(b => {
-      switch (b._id) {
+      const id = b._id;
+
+      // =========================
+      // 🔥 DYNAMIC BANK HANDLING
+      // =========================
+      if (id.startsWith("bank_")) {
+        const val = Number(b.balance || 0);
+
+        // individual bank
+        result[id] = val;
+
+        // total bank
+        result.bank += val;
+
+        return;
+      }
+
+      // =========================
+      // NORMAL TYPES (UNCHANGED)
+      // =========================
+      switch (id) {
         case "cash":
-          result.cash = b.balance;
+          result.cash = Number(b.balance || 0);
           break;
+
         case "bank":
-          result.bank = b.balance;
+          // optional: ignore if using dynamic banks only
+          result.bank += Number(b.balance || 0);
           break;
+
         case "gold_raw":
-          result.gold_raw = b.grams;
+          result.gold_raw = Number(b.grams || 0);
           break;
+
         case "gold_bar_1tt":
-          result.gold_bar = b.count;
+          result.gold_bar = Number(b.count || 0);
           break;
+
         case "silver_raw":
-          result.silver_raw = b.grams;
+          result.silver_raw = Number(b.grams || 0);
           break;
+
         case "silver_bar_kg":
-          result.silver_bar = b.count;
+          result.silver_bar = Number(b.count || 0);
           break;
       }
     });
