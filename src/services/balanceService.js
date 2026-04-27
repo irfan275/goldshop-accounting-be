@@ -53,7 +53,7 @@ const updateBalances = async (entries,session) => {
 
       await Balance.updateOne(
         { _id: item.type },
-        { $inc: { grams: change } },
+        { $inc: { grams: change.toFixed(3) } },
         { upsert: true },
         { session }
       );

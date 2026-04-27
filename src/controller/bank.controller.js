@@ -33,7 +33,7 @@ const createBank = async (req, res) => {
 // Get all shops
 const getAllBanks = async (req, res) => {
     try {
-        const data = await Bank.find({status : {$ne : StatusEnum.DELETED}});
+        const data = await Bank.find({status : {$ne : "DELETED"}});
         return SUCCESS(res,data)
     } catch (e) {
         console.log(e)

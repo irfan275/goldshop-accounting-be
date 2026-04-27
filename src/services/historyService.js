@@ -1,7 +1,8 @@
 
 const { default: mongoose } = require('mongoose');
 const { StatusEnum } = require('../constants/user.constant');
-const { Balance, LedgerHistory, Ledger, LedgerSnapshot } = require('../model');
+const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank } = require('../model');
+const { getAllBanks } = require('../controller/bank.controller');
 
 async function createLedgerHistory({ ledger, entries, userId, beforeBalances,action,session }) {
 
@@ -119,7 +120,8 @@ const getLedgerStatement = async (req) => {
         updateTotals(entryTotals, entry);
         updateTotals(totals, entry);
       }
-
+      const bankList = await Bank.find({status : {$ne : StatusEnum.DELETED}});;
+      const allBanks = bankList.map(b => b.code);
       // ======================
       // NORMAL ROW
       // ======================
@@ -165,23 +167,20 @@ const getLedgerStatement = async (req) => {
           cash: { ...totals.cash, closing: closing.cash },
           gold: { ...totals.gold, closing: closing.gold_raw },
           bank: { ...totals.bank, closing: closing.bank },
-          ttb: { ...totals.ttb, closing: closing.gold_bar },
+          ttb: { ...totals.ttb, closing: closing.gold_bar_1tt },
           silver: { ...totals.silver, closing: closing.silver_raw },
-          silver_bar: { ...totals.silver_bar, closing: closing.silver_bar },
+          silver_bar: { ...totals.silver_bar, closing: closing.silver_bar_kg },
 
-          // 🔥 ONLY ADDITION (dynamic banks, same structure style)
           ...Object.fromEntries(
-            Object.keys(totals)
-              .filter(k => k.startsWith("bank_"))
-              .map(k => [
+              allBanks.map(k => [
                 k,
                 {
-                  credit: totals[k].credit,
-                  debit: totals[k].debit,
-                  closing: closing[k] || { credit: 0, debit: 0 }
+                  credit: totals[k]?.credit || 0,
+                  debit: totals[k]?.debit || 0,
+                  closing: closing[k] || 0
                 }
               ])
-          )
+            )
         });
       }
     }
