@@ -272,29 +272,32 @@ const getPurchaseLedgerStatement = async (req) => {
       });
 
     }
-    rows.push({
-              isTotal: true,
-              date: '',
-              customer: '',
-              description: 'TOTAL',
+    if(ledgers.length > 0){
+      rows.push({
+                    isTotal: true,
+                    date: '',
+                    customer: '',
+                    description: 'TOTAL',
 
-              cash: { ...totals.cash },
-              gold: { ...totals.gold },
-              bank: { ...totals.bank },
-              ttb: { ...totals.ttb},
-              silver: { ...totals.silver },
-              silver_bar: { ...totals.silver_bar },
+                    cash: { ...totals.cash },
+                    gold: { ...totals.gold },
+                    bank: { ...totals.bank },
+                    ttb: { ...totals.ttb},
+                    silver: { ...totals.silver },
+                    silver_bar: { ...totals.silver_bar },
 
-              ...Object.fromEntries(
-                  allBanks.map(k => [
-                    k,
-                    {
-                      credit: totals[k]?.credit || 0,
-                      debit: totals[k]?.debit || 0
-                    }
-                  ])
-                )
-            });
+                    ...Object.fromEntries(
+                        allBanks.map(k => [
+                          k,
+                          {
+                            credit: totals[k]?.credit || 0,
+                            debit: totals[k]?.debit || 0
+                          }
+                        ])
+                      )
+                  });
+    }
+    
     return rows;
 
   } catch (e) {
