@@ -44,6 +44,7 @@ app.get("/", (req, res) => {
 var user_route = require('./src/route/user');
 var customer_route = require('./src/route/customer');
 var ledger_route = require('./src/route/ledger');
+var purchase_ledger_route = require('./src/route/purchase_ledger');
 var shop_route = require('./src/route/shop');
 var bank_route = require('./src/route/bank');
 
@@ -53,6 +54,7 @@ const basePath = '/api';
 app.use(basePath+'/user', user_route);
 app.use(basePath+'/customer', customer_route);
 app.use(basePath+'/ledger', ledger_route);
+app.use(basePath+'/purchaseLedger', purchase_ledger_route);
 app.use(basePath+'/shop', shop_route);
 app.use(basePath+'/bank', bank_route);
 // CONFIG

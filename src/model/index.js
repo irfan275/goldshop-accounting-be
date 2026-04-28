@@ -2,6 +2,7 @@ module.exports.User = require('./user');
 module.exports.Shop = require('./shop');
 module.exports.Customer = require('./customer');
 module.exports.Ledger = require('./ledger');
+module.exports.PurchaseLedger = require('./purchaseLedger');
 module.exports.Balance = require('./balance');
 module.exports.LedgerHistory = require('./ledgerHistory');
 module.exports.LedgerSnapshot = require('./ledgerSnapshot');

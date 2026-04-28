@@ -4,7 +4,7 @@ const {register_customer} = require('../validators/customer.validator');
 const {validate} = require('../validators/validate');
 
 const { authenticateToken } = require("../validators/middleware");
-const { createLedger, getLedgerById, updateLedger, deleteLedger, getAllLedger, getInvoiceNumberForLedger, getBalance } = require('../controller/ledger.controller');
+const { createLedger, getLedgerById, updateLedger, deleteLedger, getAllCustomerByFilter, getAllLedger, getInvoiceNumberForLedger, getBalance } = require('../controller/purchase_ledger.controller');
 
 
 // Create a new Customer
@@ -22,8 +22,6 @@ router.put('/:id', authenticateToken,updateLedger);
 
 // Delete a Customer by ID
 router.delete('/:id',authenticateToken,  deleteLedger);
-
-router.get('/balance/all', authenticateToken,getBalance);
 
 
 module.exports = router;

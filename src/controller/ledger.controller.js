@@ -19,16 +19,18 @@ const createLedger = async (req, res) => {
     session = await mongoose.startSession();
     session.startTransaction();
 
-    const { date, name, description, entries, shop,isOfficial } = req.body;
+    const { date, name, description, entries, shop,isOfficial,isBooking,custId } = req.body;
 
     // 1. Create ledger
     const ledgerArr = await Ledger.create([{
       date,
       name,
+      custId,
       description,
       shop,
       entries,
       isOfficial,
+      isBooking,
       createdBy : req.user?._id
     }], { session });
 
@@ -201,78 +203,6 @@ const getAllLedger = async (req, res) => {
   }
 };
 
-// Get all customers by filter
-const getAllCustomerByFilter = async (req, res) => {
-  try {
-    let { status, search, page, size } = req.query;
-
-    status = status || StatusEnum.ACTIVE;
-    page = parseInt(page) || 1;
-    size = parseInt(size) || 50;
-    const skip = (page - 1) * size;
-
-    let query = { status };
-    let aggregateQuery = [{ $match: query }];
-
-    if (search && search.trim() !== "") {
-      if (search.length < 3) {
-        return ERROR(res, StatusCode.BAD_REQUEST, Messages.INVALID_LENGTH_ERROR);
-      }
-
-      // Remove spaces from search for fullName matching
-      const cleanedSearch = search.replace(/\s+/g, "");
-
-      // Add field without spaces for name matching
-      aggregateQuery.push({
-        $addFields: {
-          fullName: { $replaceAll: { input: "$name", find: " ", replacement: "" }},
-          civilIdStr: { $toString: "$civilId" },
-          phoneStr: { $toString: "$phone" }
-        }
-      });
-
-      // Match using $regex as string (not JS RegExp)
-      aggregateQuery.push({
-        $match: {
-          $or: [
-            { fullName: { $regex: cleanedSearch, $options: "i" } },
-            { phoneStr: { $regex: search, $options: "i" } },
-            { civilIdStr: { $regex: search, $options: "i" } }
-          ]
-        }
-      });
-    }
-
-    // Sort by createdAt descending
-    aggregateQuery.push({ $sort: { createdAt: -1 } });
-
-    // Pagination
-    aggregateQuery.push({
-      $facet: {
-        data: [{ $skip: skip }, { $limit: size }],
-        totalCount: [{ $count: "count" }]
-      }
-    });
-
-    const result = await Customer.aggregate(aggregateQuery);
-
-    const customers = result[0]?.data || [];
-    const totalRecords = result[0]?.totalCount[0]?.count || 0;
-    const totalPages = Math.ceil(totalRecords / size);
-
-    return res.json({
-      data: customers,
-      page,
-      size,
-      totalRecords,
-      totalPages
-    });
-  } catch (e) {
-    console.log(e);
-    return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
-  }
-};
-
 // Get a customer by ID
 const getLedgerById = async (req, res) => {
   try {
@@ -404,7 +334,6 @@ module.exports = {
   deleteLedger,
   getAllLedger,
   getLedgerById,
-  getAllCustomerByFilter,
   getInvoiceNumberForLedger,
   getBalance
 };

@@ -16,7 +16,7 @@ const EntrySchema = new Schema({
     value: {type : Number}
 });
 
-const LedgerSchema = new Schema({
+const PurchaseLedgerSchema = new Schema({
     invoiceNumber: {
         type: String,
         unique: true,
@@ -26,14 +26,6 @@ const LedgerSchema = new Schema({
     custId: {type:ObjectId, ref : 'Customer'},
     description: {type:String},
     entries: [EntrySchema],
-    isOfficial: {
-        type: Boolean,
-        default: true
-    },
-    isBooking: {
-        type: Boolean,
-        default: false
-    },
     shop : {
         type : ObjectId,
         ref : 'Shop'
@@ -51,8 +43,8 @@ const LedgerSchema = new Schema({
         type : ObjectId,
         ref : 'User'
     },
-}, { collection: 'Ledger',timestamps: true });
-LedgerSchema.pre("save", async function (next) {
+}, { collection: 'PurchaseLedger',timestamps: true });
+PurchaseLedgerSchema.pre("save", async function (next) {
   try {
 
     if (!this.isNew) {
@@ -64,7 +56,7 @@ LedgerSchema.pre("save", async function (next) {
     if (!shop) {
       return next(new Error("Shop not found"));
     }
-    let seqName = `LEG-${shop.shortName}`;
+    let seqName = `P-LEG-${shop.shortName}`;
     const sequence = await getNextSequenceValue(seqName);
 
     this.invoiceNumber = seqName+"-"+sequence;
@@ -75,5 +67,5 @@ LedgerSchema.pre("save", async function (next) {
     next(error);
   }
 });
-const Ledger = mongoose.model("Ledger", LedgerSchema);
-module.exports = Ledger;
+const PurchaseLedger = mongoose.model("PurchaseLedger", PurchaseLedgerSchema);
+module.exports = PurchaseLedger;

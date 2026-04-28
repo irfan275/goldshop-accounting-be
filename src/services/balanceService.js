@@ -22,7 +22,7 @@ const updateBalances = async (entries,session) => {
 
       await Balance.updateOne(
         { _id: "gold_raw" },
-        { $inc: { grams: changeGrams } },
+        { $inc: { grams: changeGrams.toFixed(3) } },
         { upsert: true },
         { session }
       );
@@ -43,7 +43,7 @@ const updateBalances = async (entries,session) => {
 
       await Balance.updateOne(
         { _id: "silver_raw" },
-        { $inc: { grams: changeGrams } },
+        { $inc: { grams: changeGrams.toFixed(3) } },
         { upsert: true },
         { session }
       );

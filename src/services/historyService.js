@@ -1,7 +1,7 @@
 
 const { default: mongoose } = require('mongoose');
 const { StatusEnum } = require('../constants/user.constant');
-const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank } = require('../model');
+const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank, PurchaseLedger } = require('../model');
 const { getAllBanks } = require('../controller/bank.controller');
 
 async function createLedgerHistory({ ledger, entries, userId, beforeBalances,action,session }) {
@@ -54,6 +54,11 @@ async function createLedgerHistory({ ledger, entries, userId, beforeBalances,act
         entriesSnapshot: entries,
         createdBy: userId
         }], { session });
+}
+const getAllBanksCodeList = async ()=>{
+  const bankList = await Bank.find({status : {$ne : StatusEnum.DELETED}});;
+  const allBanks = bankList.map(b => b.code);
+  return allBanks;
 }
 const getLedgerStatement = async (req) => {
   try {
@@ -191,125 +196,111 @@ const getLedgerStatement = async (req) => {
     console.log(e);
   }
 };
-// const getLedgerStatement = async (req) => {
-//   try {
-//     let { fromDate, toDate , invoiceNumber,customer} = req.query;
+const getPurchaseLedgerStatement = async (req) => {
+  try {
+    let { fromDate, toDate, invoiceNumber, customer } = req.query;
 
-//     // ✅ default last 7 days
-//     if (!toDate) {
-//       toDate = new Date().toLocaleDateString("en-CA");
-//     }
+    if (!toDate) {
+      toDate = new Date().toLocaleDateString("en-CA");
+    }
 
-//     if (!fromDate) {
-//       const d = new Date(toDate);
-//       d.setDate(d.getDate() - 6);
-//       fromDate = d.toLocaleDateString("en-CA");
-//     }
-//     let query = {
-//       status: { $ne: StatusEnum.DELETED }
-//     };
-//     if(req.user.role === 'EMPLOYEE')
-//       {
-//         query.shop= new mongoose.Types.ObjectId(String(req.user.shop));
-//       }
-//       // ✅ DATE FILTER (always applied)
-//       query.date = { $gte: fromDate, $lte: toDate };
+    if (!fromDate) {
+      const d = new Date(toDate);
+      d.setDate(d.getDate() - 6);
+      fromDate = d.toLocaleDateString("en-CA");
+    }
 
-//       // ✅ INVOICE NUMBER (optional)
-//       if (invoiceNumber) {
-//         query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
-//       }
+    let query = {
+      status: { $ne: StatusEnum.DELETED }
+    };
 
-//       // ✅ CUSTOMER (optional - partial match)
-//       if (customer) {
-//         query.name = { $regex: customer, $options: "i" };
-//       }
-//     // 1. Fetch ledgers
-//     const ledgers = await Ledger.find(query)
-//       .sort({ date: 1, createdAt: 1 })
-//       .lean();
+    if (req.user.role === 'EMPLOYEE') {
+      query.shop = new mongoose.Types.ObjectId(String(req.user.shop));
+    }
 
-//     // 2. Fetch snapshots (for closing)
-//     const snapshots = await LedgerSnapshot.find({
-//       date: { $gte: fromDate, $lte: toDate }
-//     }).lean();
+    query.date = { $gte: fromDate, $lte: toDate };
 
-//     const snapshotMap = {};
-//     snapshots.forEach(s => {
-//       snapshotMap[s.date] = s.balances;
-//     });
+    if (invoiceNumber) {
+      query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
+    }
 
-//     const rows = [];
-//     let currentDate = null;
-//     let totals = resetTotals();
+    if (customer) {
+      query.name = { $regex: customer, $options: "i" };
+    }
 
-//     for (let i = 0; i < ledgers.length; i++) {
+    const ledgers = await PurchaseLedger.find(query)
+      .sort({ date: 1, createdAt: 1 })
+      .lean();
 
-//       const ledger = ledgers[i];
-//       const dateKey = ledger.date;
+    const rows = [];
+    let totals = resetTotals();
+    const allBanks = await getAllBanksCodeList();
+    for (let i = 0; i < ledgers.length; i++) {
+      const ledger = ledgers[i];
+      const dateKey = ledger.date;
 
-//       // 🔥 new date
-//       if (currentDate !== dateKey) {
-//         currentDate = dateKey;
-//         totals = resetTotals();
-//       }
 
-//       // 🔥 per-entry totals
-//       let entryTotals = resetTotals();
+      let entryTotals = resetTotals();
 
-//       for (const entry of ledger.entries) {
-//         updateTotals(entryTotals, entry);
-//         updateTotals(totals, entry);
-//       }
+      for (const entry of ledger.entries) {
+        updateTotals(entryTotals, entry);
+        updateTotals(totals, entry);
+      }
+      // ======================
+      // NORMAL ROW
+      // ======================
+      rows.push({
+        isTotal: false,
+        date: dateKey,
+        id: ledger._id,
+        invoiceNumber: ledger.invoiceNumber,
+        customer: ledger.name,
+        description: ledger.description,
 
-//       // 🔥 push entry row
-//       rows.push({
-//         isTotal: false,
-//         date: dateKey,
-//         id : ledger._id,
-//         invoiceNumber : ledger.invoiceNumber,
-//         customer: ledger.name,
-//         description: ledger.description,
-//         isOfficial: ledger.isOfficial,
+        cash: entryTotals.cash,
+        gold: entryTotals.gold,
+        silver: entryTotals.silver,
+        ttb: entryTotals.ttb,
+        silver_bar: entryTotals.silver_bar,
+        bank: entryTotals.bank,
 
-//         cash: entryTotals.cash,
-//         gold: entryTotals.gold,
-//         silver: entryTotals.silver,
-//         bank: entryTotals.bank,
-//         ttb: entryTotals.ttb,
-//         silver_bar: entryTotals.silver_bar
-//       });
+        // flat dynamic banks
+        ...Object.fromEntries(
+          Object.entries(entryTotals)
+            .filter(([k]) => k.startsWith("bank_"))
+        )
+      });
 
-//       // 🔥 check end of date
-//       const next = ledgers[i + 1];
-//       const nextDate = next ? next.date : null;
+    }
+    rows.push({
+              isTotal: true,
+              date: '',
+              customer: '',
+              description: 'TOTAL',
 
-//       if (dateKey !== nextDate) {
+              cash: { ...totals.cash },
+              gold: { ...totals.gold },
+              bank: { ...totals.bank },
+              ttb: { ...totals.ttb},
+              silver: { ...totals.silver },
+              silver_bar: { ...totals.silver_bar },
 
-//         const closing = snapshotMap[dateKey] || resetBalance();
+              ...Object.fromEntries(
+                  allBanks.map(k => [
+                    k,
+                    {
+                      credit: totals[k]?.credit || 0,
+                      debit: totals[k]?.debit || 0
+                    }
+                  ])
+                )
+            });
+    return rows;
 
-//         rows.push({
-//           isTotal: true,
-//           date: dateKey,
-//           customer: '',
-//           description: 'TOTAL',
-
-//           cash: { ...totals.cash, closing: closing.cash },
-//           gold: { ...totals.gold, closing: closing.gold_raw },
-//           bank: { ...totals.bank, closing: closing.bank },
-//           ttb: { ...totals.ttb, closing: closing.gold_bar },
-//           silver: { ...totals.silver, closing: closing.silver_raw },
-//           silver_bar: { ...totals.silver_bar, closing: closing.silver_bar },
-//         });
-//       }
-//     }
-
-//     return rows;
-
-//   } catch (e) {
-//     console.log(e);
-//   }
-// };
+  } catch (e) {
+    console.log(e);
+  }
+};
 function formatDate(date) {
   return new Date(date).toISOString().split('T')[0];
 }
@@ -418,5 +409,6 @@ function extractClosing(history) {
 }
 module.exports = {
   createLedgerHistory,
-  getLedgerStatement
+  getLedgerStatement,
+  getPurchaseLedgerStatement
 };
