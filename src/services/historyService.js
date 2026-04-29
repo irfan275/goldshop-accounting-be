@@ -138,6 +138,8 @@ const getLedgerStatement = async (req) => {
         customer: ledger.name,
         description: ledger.description,
         isOfficial: ledger.isOfficial,
+        isBooking: ledger.isBooking,
+
 
         cash: entryTotals.cash,
         gold: entryTotals.gold,
@@ -413,5 +415,7 @@ function extractClosing(history) {
 module.exports = {
   createLedgerHistory,
   getLedgerStatement,
-  getPurchaseLedgerStatement
+  getPurchaseLedgerStatement,
+  getAllBanksCodeList,
+  updateTotals
 };

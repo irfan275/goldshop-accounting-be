@@ -47,6 +47,7 @@ var ledger_route = require('./src/route/ledger');
 var purchase_ledger_route = require('./src/route/purchase_ledger');
 var shop_route = require('./src/route/shop');
 var bank_route = require('./src/route/bank');
+var statement_route = require('./src/route/satement');
 
 const port = process.env.PORT || 3001;
 //const httpsPort = process.env.HTTPSPORT || 3005;
@@ -57,6 +58,7 @@ app.use(basePath+'/ledger', ledger_route);
 app.use(basePath+'/purchaseLedger', purchase_ledger_route);
 app.use(basePath+'/shop', shop_route);
 app.use(basePath+'/bank', bank_route);
+app.use(basePath+'/statement', statement_route);
 // CONFIG
 const MONGO_URI = process.env.MONGO_URL;
 const DUMP_DIR = path.join(__dirname, 'dump');
