@@ -141,6 +141,25 @@ const getStatement = async (req, res) => {
                             ])
                           )
                       });
+            const goldNet =getNet(totals.gold) +(getNet(totals.ttb) * 116.64);
+
+            const silverNet = getNet(totals.silver) + (getNet(totals.silver_bar) * 1000); // assuming kg → grams
+
+            const cashNet = getNet(totals.cash);
+            const bankNet = getNet(totals.bank);
+            rows.push({
+              isBalance: true,
+              date: '',
+              customer: '',
+              description: 'BALANCE',
+
+              gold: goldNet,
+              silver: silverNet,
+              cash: cashNet,
+              bank: bankNet,
+              ttb: getNet(totals.ttb),
+              silver_bar: getNet(totals.silver_bar)
+            });
         }
         
     return SUCCESS(res, rows);
@@ -149,7 +168,11 @@ const getStatement = async (req, res) => {
     return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
   }
 };
-
+const getNet = (obj) => {
+  const cr = Number(obj?.credit || 0);
+  const dr = Number(obj?.debit || 0);
+  return cr - dr;
+};
 
 
 module.exports = {
