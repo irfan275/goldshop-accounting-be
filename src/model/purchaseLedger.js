@@ -21,6 +21,7 @@ const PurchaseLedgerSchema = new Schema({
         type: String,
         unique: true,
     },
+    ledgerId: {type:String},
     date: {type:String},
     name: {type:String},
     custId: {type:ObjectId, ref : 'Customer'},

@@ -3,7 +3,7 @@ const { StatusCode } = require("../constants/status.constant");
 const { StatusEnum, UserRoles } = require("../constants/user.constant");
 const { ERROR, SUCCESS } = require("../helper/response.helper");
 const { updateUserDetails } = require("../helper/db.helper");
-const { Customer, Shop, PurchaseLedger } = require("../model");
+const { Customer, Shop, PurchaseLedger, Ledger } = require("../model");
 const { checkUserPrivileges } = require("../utils/roles.utils");
 const mongoose = require("mongoose");
 const { validateCardExpiry } = require("../helper/common.helper");
@@ -143,8 +143,59 @@ const getInvoiceNumberForLedger = async (req, res) => {
 
   }
 }
+const createPurchaseLedgerFromId = async(req, res) => {
+  try {
 
+    if(req.user.role === UserRoles.EMPLOYEE){
+      res.json({
+            message: "Not Authorized to create Purchase Ledger",
+            data: {}
+          });
+    }
 
+    const { ledgerId } = req.body;
+    const ledger = await Ledger.findById(ledgerId).lean();
+
+      if (!ledger) {
+        throw new Error("Ledger not found");
+      }
+
+      const purchaseData = buildPurchaseFromLedger(ledger);
+
+      const purchase = new PurchaseLedger(purchaseData);
+      updateUserDetails(req, ledger, true);
+      await purchase.save();
+
+    return SUCCESS(res, purchase);
+  } catch (e) {
+    console.log(e);
+    return ERROR(res, StatusCode.SERVER_ERROR, Messages.SERVER_ERROR);
+  }
+}
+const transformToPurchaseEntries = (entries = []) => {
+  return entries.map(e => ({
+    ...e,
+    credit: e.debit || 0,
+    debit: e.credit || 0
+  }));
+};
+const buildPurchaseFromLedger = (ledger) => {
+  return {
+    date: ledger.date,
+    name: ledger.name,
+    custId: ledger.custId,
+    description: ledger.description,
+
+    // 🔥 flip entries
+    entries: transformToPurchaseEntries(ledger.entries),
+
+    //isOfficial: ledger.isOfficial,
+    isBooking: ledger.isBooking,
+    shop: ledger.shop,
+    ledgerId : ledger.invoiceNumber
+
+  };
+};
 module.exports = {
   createLedger,
   updateLedger,
@@ -152,4 +203,5 @@ module.exports = {
   getAllLedger,
   getLedgerById,
   getInvoiceNumberForLedger,
+  createPurchaseLedgerFromId
 };
