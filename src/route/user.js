@@ -3,7 +3,7 @@ const router = express.Router();
 const { login_validator, register_user_validator, forgot_password_validator, reset_password_validator, update_user_validator } = require('../validators/user.validator');
 const {validate} = require('../validators/validate');
 const { authenticateToken } = require("../validators/middleware");
-const {loginUser,createUser, getAllUsers, getUserById, deleteUser, updateUser} = require('../controller/user.controller');
+const {loginUser,createUser, getAllUsers, getUserById, deleteUser, updateUser, generate2FASecret, get2FASecret} = require('../controller/user.controller');
 const { restrictToEmployee } = require('../validators/roleMiddleware');
 
 router.post('/login', login_validator(),validate,loginUser);
@@ -16,6 +16,10 @@ router.get('/', authenticateToken,restrictToEmployee,getAllUsers);
 
 // Get a user by ID
 router.get('/:id', authenticateToken,restrictToEmployee,getUserById);
+
+router.post('/2fa/generate/:userId', authenticateToken,restrictToEmployee,generate2FASecret);
+router.get('/2fa/secret/:userId', authenticateToken,restrictToEmployee,get2FASecret);
+
 
 // Update a user by ID
 router.put('/:id', authenticateToken,restrictToEmployee,updateUser);

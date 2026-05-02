@@ -50,6 +50,8 @@ const UserSchema = new Schema({
         enum: UserRoles,
         default: "EMPLOYEE"
     },
+    twoFactorSecret: { type: String },
+    twoFactorEnabled: { type: Boolean, default: true },
     createdBy : {
         type : ObjectId,
         ref : 'User'

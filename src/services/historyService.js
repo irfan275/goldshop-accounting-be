@@ -174,20 +174,20 @@ const getLedgerStatement = async (req) => {
           customer: '',
           description: 'TOTAL',
 
-          cash: { ...totals.cash, closing: closing.cash },
-          gold: { ...totals.gold, closing: closing.gold_raw },
-          bank: { ...totals.bank, closing: closing.bank },
+          cash: { ...totals.cash, closing: to3(closing.cash) },
+          gold: { ...totals.gold, closing: to3(closing.gold_raw) },
+          bank: { ...totals.bank, closing: to3(closing.bank) },
           ttb: { ...totals.ttb, closing: closing.gold_bar_1tt },
-          silver: { ...totals.silver, closing: closing.silver_raw },
+          silver: { ...totals.silver, closing: to3(closing.silver_raw) },
           silver_bar: { ...totals.silver_bar, closing: closing.silver_bar_kg },
 
           ...Object.fromEntries(
               allBanks.map(k => [
                 k,
                 {
-                  credit: totals[k]?.credit || 0,
-                  debit: totals[k]?.debit || 0,
-                  closing: closing[k] || 0
+                  credit: to3(totals[k]?.credit) || 0,
+                  debit: to3(totals[k]?.debit) || 0,
+                  closing: to3(closing[k]) || 0
                 }
               ])
             )
@@ -336,10 +336,62 @@ function resetBalance() {
     bank: 0
   };
 }
+const to3 = (num) => Number(Number(num || 0).toFixed(3));
+// function updateTotals(totals, entry) {
+//   let type = entry.type;
+
+//   // normalize type (avoid mutation)
+//   if (type === 'gold_bar' || type === 'silver_bar') {
+//     type = `${type}_${entry.subType}`;
+//   }
+
+//   const map = {
+//     cash: 'cash',
+//     gold_raw: 'gold',
+//     silver_raw: 'silver',
+//     gold_bar_1tt: 'ttb',
+//     silver_bar_kg: 'silver_bar'
+//   };
+
+//   const credit = Number(entry.credit || 0);
+//   const debit = Number(entry.debit || 0);
+
+//   // ✅ BANK HANDLING (flat structure)
+//   if (type.startsWith('bank_')) {
+//     // 1. individual bank (flat key)
+//     if (!totals[type]) {
+//       totals[type] = { credit: 0, debit: 0 };
+//     }
+
+//     totals[type].credit += credit;
+//     totals[type].debit += debit;
+
+//     // 2. overall bank total
+//     if (!totals.bank) {
+//       totals.bank = { credit: 0, debit: 0 };
+//     }
+
+//     totals.bank.credit += credit;
+//     totals.bank.debit += debit;
+
+//     return;
+//   }
+
+//   // ✅ other categories
+//   const key = map[type];
+//   if (!key) return;
+
+//   if (!totals[key]) {
+//     totals[key] = { credit: 0, debit: 0 };
+//   }
+
+//   totals[key].credit += credit;
+//   totals[key].debit += debit;
+// }
 function updateTotals(totals, entry) {
   let type = entry.type;
 
-  // normalize type (avoid mutation)
+  // normalize type
   if (type === 'gold_bar' || type === 'silver_bar') {
     type = `${type}_${entry.subType}`;
   }
@@ -352,31 +404,31 @@ function updateTotals(totals, entry) {
     silver_bar_kg: 'silver_bar'
   };
 
-  const credit = Number(entry.credit || 0);
-  const debit = Number(entry.debit || 0);
+  // ✅ round to 3 decimals
+  const credit = to3(entry.credit);
+  const debit = to3(entry.debit);
 
-  // ✅ BANK HANDLING (flat structure)
+  // ===== BANK =====
   if (type.startsWith('bank_')) {
-    // 1. individual bank (flat key)
+
     if (!totals[type]) {
       totals[type] = { credit: 0, debit: 0 };
     }
 
-    totals[type].credit += credit;
-    totals[type].debit += debit;
+    totals[type].credit = to3(totals[type].credit + credit);
+    totals[type].debit = to3(totals[type].debit + debit);
 
-    // 2. overall bank total
     if (!totals.bank) {
       totals.bank = { credit: 0, debit: 0 };
     }
 
-    totals.bank.credit += credit;
-    totals.bank.debit += debit;
+    totals.bank.credit = to3(totals.bank.credit + credit);
+    totals.bank.debit = to3(totals.bank.debit + debit);
 
     return;
   }
 
-  // ✅ other categories
+  // ===== OTHER =====
   const key = map[type];
   if (!key) return;
 
@@ -384,8 +436,8 @@ function updateTotals(totals, entry) {
     totals[key] = { credit: 0, debit: 0 };
   }
 
-  totals[key].credit += credit;
-  totals[key].debit += debit;
+  totals[key].credit = to3(totals[key].credit + credit);
+  totals[key].debit = to3(totals[key].debit + debit);
 }
 // function updateTotals(totals, entry) {
 //   if (!totals[entry.type]) return;

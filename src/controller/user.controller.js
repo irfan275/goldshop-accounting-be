@@ -5,12 +5,12 @@ const { ERROR, SUCCESS } = require("../helper/response.helper");
 const { User } = require("../model");
 const { createToken } = require("../validators/middleware");
 const { updateUserDetails } = require("../helper/db.helper");
-
+const speakeasy = require('speakeasy');
 
 const loginUser = async (req,res) => {
     //console.log(req.originalUrl);
     try{
-        let {phoneNumber,password} = req.body;
+        let {phoneNumber,password,otp} = req.body;
         
 
         const  user = await User.findOne({phoneNumber}).select('+password');
@@ -23,6 +23,19 @@ const loginUser = async (req,res) => {
         if (!passwordsMatch) {
             return ERROR(res,StatusCode.NOT_FOUND,Messages.LOGIN_INVALID);
         }
+        if(process.env.OTP_VALIDATION == 'true'){
+            const verified = speakeasy.totp.verify({
+                secret: user.twoFactorSecret,
+                encoding: 'base32',
+                token: otp,
+                window: 1
+            });
+
+            if (!verified) {
+                return ERROR(res,StatusCode.NOT_FOUND, 'Invalid OTP');
+            }
+        }
+        
         const accessToken = createToken({
             email: user.email,
             phoneNumber: user.phoneNumber,
@@ -145,6 +158,42 @@ const deleteUser = async (req, res) => {
         return ERROR(res,StatusCode.SERVER_ERROR,Messages.SERVER_ERROR);
     }
 };
+
+
+async function generate2FASecret(req, res) {
+  const userId = req.params.userId;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  const secret = speakeasy.generateSecret({
+    length: 20
+  });
+
+  // Save in DB
+  user.twoFactorSecret = secret.base32;
+  user.twoFactorEnabled = true;
+  await user.save();
+
+  res.json({
+    message: '2FA secret generated successfully',
+    userId: user._id
+  });
+}
+async function get2FASecret(req, res) {
+  const userId = req.params.userId;
+
+  const user = await User.findById(userId);
+  if (!user || !user.twoFactorSecret) {
+    return res.status(404).json({ message: '2FA not set for this user' });
+  }
+
+  res.json({
+    secret: user.twoFactorSecret
+  });
+}
 module.exports = {
   loginUser,
   createUser,
@@ -152,4 +201,6 @@ module.exports = {
   deleteUser,
   getUserById,
   getAllUsers,
+  generate2FASecret,
+  get2FASecret
 };
