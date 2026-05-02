@@ -21,7 +21,7 @@ const createLedger= async (req, res) => {
     //   UserRoles.MANAGER
     // );
 
-    const { date, name, description, entries, shop,isOfficial,custId } = req.body;
+    const { date, name, description, entries, shop,isBooking,custId } = req.body;
     
         // 1. Create ledger
         const ledger = await PurchaseLedger({
@@ -30,6 +30,7 @@ const createLedger= async (req, res) => {
           custId,
           description,
           shop,
+          isBooking,
           entries
         });
     updateUserDetails(req, ledger, true);

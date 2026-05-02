@@ -26,6 +26,10 @@ const PurchaseLedgerSchema = new Schema({
     custId: {type:ObjectId, ref : 'Customer'},
     description: {type:String},
     entries: [EntrySchema],
+    isBooking: {
+        type: Boolean,
+        default: false
+    },
     shop : {
         type : ObjectId,
         ref : 'Shop'

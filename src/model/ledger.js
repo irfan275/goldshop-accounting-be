@@ -28,7 +28,7 @@ const LedgerSchema = new Schema({
     entries: [EntrySchema],
     isOfficial: {
         type: Boolean,
-        default: true
+        default: false
     },
     isBooking: {
         type: Boolean,

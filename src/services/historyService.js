@@ -88,9 +88,12 @@ const getLedgerStatement = async (req) => {
       query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
     }
 
+    // if (customer) {
+    //   query.name = { $regex: customer, $options: "i" };
+    // }
     if (customer) {
-      query.name = { $regex: customer, $options: "i" };
-    }
+          query.custId = new mongoose.Types.ObjectId(String(customer));;
+        }
 
     const ledgers = await Ledger.find(query)
       .sort({ date: 1, createdAt: 1 })
@@ -226,9 +229,12 @@ const getPurchaseLedgerStatement = async (req) => {
       query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
     }
 
+    // if (customer) {
+    //   query.name = { $regex: customer, $options: "i" };
+    // }
     if (customer) {
-      query.name = { $regex: customer, $options: "i" };
-    }
+          query.custId = new mongoose.Types.ObjectId(String(customer));;
+        }
 
     const ledgers = await PurchaseLedger.find(query)
       .sort({ date: 1, createdAt: 1 })
@@ -258,7 +264,7 @@ const getPurchaseLedgerStatement = async (req) => {
         invoiceNumber: ledger.invoiceNumber,
         customer: ledger.name,
         description: ledger.description,
-
+        isBooking : ledger.isBooking,
         cash: entryTotals.cash,
         gold: entryTotals.gold,
         silver: entryTotals.silver,
