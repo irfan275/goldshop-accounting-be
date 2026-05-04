@@ -8,7 +8,7 @@ const { checkUserPrivileges } = require("../utils/roles.utils");
 const mongoose = require("mongoose");
 const { updateBalances } = require("../services/balanceService");
 const { createLedgerHistory, getLedgerStatement } = require("../services/historyService");
-const { normalizeDate } = require("../helper/common.helper");
+const { normalizeDate, getNextSequenceValue } = require("../helper/common.helper");
 const { rebuildSnapshotsFrom } = require("../services/ledgerSnapshotService");
 const Sequence = require("../model/sequence");
 
@@ -314,8 +314,13 @@ const deleteLedger = async (req, res) => {
 const getInvoiceNumberForLedger = async (req, res) => {
 
   try {
-    const invoiceNumber = await getSequenceById(req.params.id);
-    res.json({ invoiceNumber : invoiceNumber});
+    const shop = await Shop.findOne({_id : req.params.id, status : {$ne : StatusEnum.DELETED}}).lean();
+    let seqName = `LEG-${shop.shortName}`;
+    let sequence = await Sequence.findOne(
+      {name:seqName}
+    );
+    let sequenceNumber = !sequence? 0 : sequence.value;
+    res.json({ invoiceNumber : `${seqName}-${sequenceNumber+1}`});
 
   } catch (error) {
 
@@ -327,13 +332,16 @@ const getInvoiceNumberForLedger = async (req, res) => {
   }
 }
 const getSequenceById = async (id) => {
-  const shop = await Shop.findOne({_id : id, status : {$ne : StatusEnum.DELETED}}).lean();
+  const shop = await Shop.findById(id);
+
+    if (!shop) {
+      return next(new Error("Shop not found"));
+    }
     let seqName = `LEG-${shop.shortName}`;
-    let sequence = await Sequence.findOne(
-      {name:seqName}
-    );
-    let sequenceNumber = !sequence? 0 : sequence.value;
-    return  `${seqName}-${sequenceNumber+1}`;
+    const sequence = await getNextSequenceValue(seqName);
+
+    let invoiceNumber = seqName+"-"+sequence;
+    return  invoiceNumber;
 } 
 module.exports = {
   createLedger,
