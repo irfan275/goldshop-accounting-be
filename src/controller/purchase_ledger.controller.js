@@ -54,9 +54,21 @@ const updateLedger = async (req, res) => {
       });
   
     }
+    let query = { _id: req.params.id, status: { $ne: StatusEnum.DELETED } };
+    let oldLedger = await PurchaseLedger.findOne(query).lean();
+
+    if (!oldLedger) {
+      return ERROR(res, StatusCode.NOT_FOUND, Messages.LEDGER_NOT_FOUND);
+    }
+    let updatedData = req.body;
+    if(updatedData.shop != oldLedger.shop.toString())
+    {
+      const invoiceNumber =await getSequenceById(updatedData.shop);
+      updatedData.invoiceNumber=invoiceNumber;
+    }
     const ledger = await PurchaseLedger.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updatedData,
       { new: true }
     );
 
@@ -125,14 +137,8 @@ const deleteLedger = async (req, res) => {
 const getInvoiceNumberForLedger = async (req, res) => {
 
   try {
-    const shop = await Shop.findOne({_id : req.params.id, status : {$ne : StatusEnum.DELETED}}).lean();
-    let seqName = `P-LEG-${shop.shortName}`;
-    let sequence = await Sequence.findOne(
-      {name:seqName}
-    );
-    let sequenceNumber = !sequence? 0 : sequence.value;
-    res.json({ invoiceNumber : `${seqName}-${sequenceNumber+1}`
-    });
+    const invoiceNumber = await getSequenceById(req.params.id);
+    res.json({ invoiceNumber : invoiceNumber});
 
   } catch (error) {
 
@@ -142,6 +148,15 @@ const getInvoiceNumberForLedger = async (req, res) => {
     });
 
   }
+}
+const getSequenceById = async (id) => {
+  const shop = await Shop.findOne({_id : id, status : {$ne : StatusEnum.DELETED}}).lean();
+    let seqName = `P-LEG-${shop.shortName}`;
+    let sequence = await Sequence.findOne(
+      {name:seqName}
+    );
+    let sequenceNumber = !sequence? 0 : sequence.value;
+    return `${seqName}-${sequenceNumber+1}`;
 }
 const createPurchaseLedgerFromId = async(req, res) => {
   try {

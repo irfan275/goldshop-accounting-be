@@ -118,6 +118,11 @@ const updateLedger = async (req, res) => {
 
     }
     updateUserDetails(req, updatedData, true);
+    if(updatedData.shop != ledger.shop.toString())
+    {
+      const invoiceNumber =await getSequenceById(updatedData.shop);
+      updatedData.invoiceNumber=invoiceNumber;
+    }
     // 2. Capture BEFORE balances
     const updatedLedger = await Ledger.findByIdAndUpdate(
       req.params.id,
@@ -309,14 +314,8 @@ const deleteLedger = async (req, res) => {
 const getInvoiceNumberForLedger = async (req, res) => {
 
   try {
-    const shop = await Shop.findOne({_id : req.params.id, status : {$ne : StatusEnum.DELETED}}).lean();
-    let seqName = `LEG-${shop.shortName}`;
-    let sequence = await Sequence.findOne(
-      {name:seqName}
-    );
-    let sequenceNumber = !sequence? 0 : sequence.value;
-    res.json({ invoiceNumber : `${seqName}-${sequenceNumber+1}`
-    });
+    const invoiceNumber = await getSequenceById(req.params.id);
+    res.json({ invoiceNumber : invoiceNumber});
 
   } catch (error) {
 
@@ -327,7 +326,15 @@ const getInvoiceNumberForLedger = async (req, res) => {
 
   }
 }
-
+const getSequenceById = async (id) => {
+  const shop = await Shop.findOne({_id : id, status : {$ne : StatusEnum.DELETED}}).lean();
+    let seqName = `LEG-${shop.shortName}`;
+    let sequence = await Sequence.findOne(
+      {name:seqName}
+    );
+    let sequenceNumber = !sequence? 0 : sequence.value;
+    return  `${seqName}-${sequenceNumber+1}`;
+} 
 module.exports = {
   createLedger,
   updateLedger,
