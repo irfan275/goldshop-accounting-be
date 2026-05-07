@@ -244,12 +244,12 @@ const getLedgerStatement = async (req) => {
         isAdjustment: true,
         description: "Adjusted Closing Balance",
 
-        cash: (lastClosing.cash + totals.cash.credit)- totals.cash.debit,
-        gold:  (lastClosing.gold_raw + totals.gold.credit) - totals.gold.debit,
-        silver:  (lastClosing.silver_raw + totals.silver.credit) - totals.silver.debit,
+        cash: to3((lastClosing.cash + totals.cash.credit)- totals.cash.debit),
+        gold: to3( (lastClosing.gold_raw + totals.gold.credit) - totals.gold.debit),
+        silver: to3(  (lastClosing.silver_raw + totals.silver.credit) - totals.silver.debit),
         ttb: (lastClosing.gold_bar_1tt + totals.ttb.credit) - totals.ttb.debit,
         silver_bar: (lastClosing.silver_bar_kg + totals.silver_bar.credit) - totals.silver_bar.debit,
-        bank: (lastClosing.bank + totals.bank.credit) - totals.bank.debit,
+        bank: to3( (lastClosing.bank + totals.bank.credit) - totals.bank.debit),
 
         // dynamic banks
         ...Object.fromEntries(
@@ -258,7 +258,7 @@ const getLedgerStatement = async (req) => {
             .map(([k, v]) => [
               k,
               {
-                credit:( (lastClosing[k] || 0) + v.credit) - v.debit,
+                credit:to3( ( (lastClosing[k] || 0) + v.credit) - v.debit),
               }
             ])
         )
