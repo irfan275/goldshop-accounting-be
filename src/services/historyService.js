@@ -1,7 +1,7 @@
 
 const { default: mongoose } = require('mongoose');
 const { StatusEnum } = require('../constants/user.constant');
-const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank, PurchaseLedger } = require('../model');
+const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank, PurchaseLedger, AdjustmentLedger } = require('../model');
 const { getAllBanks } = require('../controller/bank.controller');
 
 async function createLedgerHistory({ ledger, entries, userId, beforeBalances,action,session }) {
@@ -111,7 +111,9 @@ const getLedgerStatement = async (req) => {
     const rows = [];
     let currentDate = null;
     let totals = resetTotals();
-
+    const bankList = await Bank.find({status : {$ne : StatusEnum.DELETED}});;
+    const allBanks = bankList.map(b => b.code);
+    let closing ;
     for (let i = 0; i < ledgers.length; i++) {
       const ledger = ledgers[i];
       const dateKey = ledger.date;
@@ -128,13 +130,13 @@ const getLedgerStatement = async (req) => {
         updateTotals(entryTotals, entry);
         updateTotals(totals, entry);
       }
-      const bankList = await Bank.find({status : {$ne : StatusEnum.DELETED}});;
-      const allBanks = bankList.map(b => b.code);
+      
       // ======================
       // NORMAL ROW
       // ======================
       rows.push({
         isTotal: false,
+        isAdjustment : false,
         date: dateKey,
         id: ledger._id,
         invoiceNumber: ledger.invoiceNumber,
@@ -166,10 +168,11 @@ const getLedgerStatement = async (req) => {
       const nextDate = next ? next.date : null;
 
       if (dateKey !== nextDate) {
-        const closing = snapshotMap[dateKey] || resetTotals();
+        closing = snapshotMap[dateKey] || resetTotals();
 
         rows.push({
           isTotal: true,
+          isAdjustment : false,
           date: dateKey,
           customer: '',
           description: 'TOTAL',
@@ -194,7 +197,73 @@ const getLedgerStatement = async (req) => {
         });
       }
     }
+    totals = resetTotals();
+    const adjustmentLedger = await AdjustmentLedger.find({});
+    for (let i = 0; i < adjustmentLedger.length; i++) {
+      const ledger = adjustmentLedger[i];
+      const dateKey = ledger.date;
 
+
+      let entryTotals = resetTotals();
+
+      for (const entry of ledger.entries) {
+        updateTotals(entryTotals, entry);
+        updateTotals(totals, entry);
+      }
+      // ======================
+      // NORMAL ROW
+      // ======================
+      rows.push({
+        isTotal: false,
+        isAdjustment : true,
+        date: dateKey,
+        id: ledger._id,
+        invoiceNumber: ledger.invoiceNumber,
+        customer: ledger.name,
+        description: ledger.description,
+        isBooking : ledger.isBooking,
+        cash: entryTotals.cash,
+        gold: entryTotals.gold,
+        silver: entryTotals.silver,
+        ttb: entryTotals.ttb,
+        silver_bar: entryTotals.silver_bar,
+        bank: entryTotals.bank,
+
+        // flat dynamic banks
+        ...Object.fromEntries(
+          Object.entries(entryTotals)
+            .filter(([k]) => k.startsWith("bank_"))
+        )
+      });
+
+    }
+    const lastClosing = closing
+    if(adjustmentLedger.length > 0){
+      rows.push({
+        isTotal: true,
+        isAdjustment: true,
+        description: "Adjusted Closing Balance",
+
+        cash: (lastClosing.cash + totals.cash.credit)- totals.cash.debit,
+        gold:  (lastClosing.gold_raw + totals.gold.credit) - totals.gold.debit,
+        silver:  (lastClosing.silver_raw + totals.silver.credit) - totals.silver.debit,
+        ttb: (lastClosing.gold_bar_1tt + totals.ttb.credit) - totals.ttb.debit,
+        silver_bar: (lastClosing.silver_bar_kg + totals.silver_bar.credit) - totals.silver_bar.debit,
+        bank: (lastClosing.bank + totals.bank.credit) - totals.bank.debit,
+
+        // dynamic banks
+        ...Object.fromEntries(
+          Object.entries(totals)
+            .filter(([k]) => k.startsWith("bank_"))
+            .map(([k, v]) => [
+              k,
+              {
+                credit:( (lastClosing[k] || 0) + v.credit) - v.debit,
+              }
+            ])
+        )
+      });
+    }
     return rows;
 
   } catch (e) {
@@ -304,6 +373,60 @@ const getPurchaseLedgerStatement = async (req) => {
                         ])
                       )
                   });
+    }
+    
+    return rows;
+
+  } catch (e) {
+    console.log(e);
+  }
+};
+const getAdjustmentLedgerStatement = async (req) => {
+  try {
+
+    const ledgers = await AdjustmentLedger.find({})
+      .sort({ date: 1, createdAt: 1 })
+      .lean();
+
+    const rows = [];
+    let totals = resetTotals();
+    const allBanks = await getAllBanksCodeList();
+    for (let i = 0; i < ledgers.length; i++) {
+      const ledger = ledgers[i];
+      const dateKey = ledger.date;
+
+
+      let entryTotals = resetTotals();
+
+      for (const entry of ledger.entries) {
+        updateTotals(entryTotals, entry);
+        //updateTotals(totals, entry);
+      }
+      // ======================
+      // NORMAL ROW
+      // ======================
+      rows.push({
+        isTotal: false,
+        date: dateKey,
+        id: ledger._id,
+        invoiceNumber: ledger.invoiceNumber,
+        customer: ledger.name,
+        description: ledger.description,
+        isBooking : ledger.isBooking,
+        cash: entryTotals.cash,
+        gold: entryTotals.gold,
+        silver: entryTotals.silver,
+        ttb: entryTotals.ttb,
+        silver_bar: entryTotals.silver_bar,
+        bank: entryTotals.bank,
+
+        // flat dynamic banks
+        ...Object.fromEntries(
+          Object.entries(entryTotals)
+            .filter(([k]) => k.startsWith("bank_"))
+        )
+      });
+
     }
     
     return rows;
@@ -475,5 +598,6 @@ module.exports = {
   getLedgerStatement,
   getPurchaseLedgerStatement,
   getAllBanksCodeList,
-  updateTotals
+  updateTotals,
+  getAdjustmentLedgerStatement
 };
