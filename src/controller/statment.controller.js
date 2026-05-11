@@ -21,7 +21,7 @@ function resetTotals() {
 // Get all Customer
 const getStatement = async (req, res) => {
   try {
-        let { fromDate, toDate, customer } = req.query;
+        let { fromDate, toDate, customer,invoiceNumber } = req.query;
     
         if (!toDate) {
           toDate = new Date().toLocaleDateString("en-CA");
@@ -46,6 +46,9 @@ const getStatement = async (req, res) => {
     
         if (customer) {
           query.custId = new mongoose.Types.ObjectId(String(customer));;
+        }
+        if (invoiceNumber) {
+          query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
         }
     
         const purchaseLedgers = await PurchaseLedger.find(query)
