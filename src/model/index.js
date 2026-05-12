@@ -3,6 +3,7 @@ module.exports.Shop = require('./shop');
 module.exports.Customer = require('./customer');
 module.exports.Ledger = require('./ledger');
 module.exports.PurchaseLedger = require('./purchaseLedger');
+module.exports.BuyAndSellLedger = require('./buyAndSellLedger');
 module.exports.AdjustmentLedger = require('./adjustmentLedger');
 module.exports.Balance = require('./balance');
 module.exports.LedgerHistory = require('./ledgerHistory');
