@@ -136,17 +136,17 @@ const runBackup = () => {
 
       try {
         // ✅ SEND EMAIL FIRST
-        await transporter.sendMail({
-          from: '"Mongo Backup" <your@gmail.com>',
-          to: EMAIL_TO,
-          subject: 'MongoDB Backup',
-          text: 'Backup attached.',
-          attachments: [
-            { filename: path.basename(archivePath), path: archivePath }
-          ]
-        });
+        // await transporter.sendMail({
+        //   from: '"Mongo Backup" <your@gmail.com>',
+        //   to: EMAIL_TO,
+        //   subject: 'MongoDB Backup',
+        //   text: 'Backup attached.',
+        //   attachments: [
+        //     { filename: path.basename(archivePath), path: archivePath }
+        //   ]
+        // });
 
-        console.log('Email sent successfully');
+        // console.log('Email sent successfully');
 
         // ✅ THEN delete dump folder
         if (fs.existsSync(DUMP_DIR)) {
@@ -164,11 +164,11 @@ const runBackup = () => {
     });
   });
 };
-// Runs at 10:00 PM every day
-// cron.schedule('0 20 * * *', () => {
-//   console.log('Running scheduled backup at 10 PM...');
-//   runBackup();
-// });
+//Runs at 10:00 PM every day
+cron.schedule('0 20 * * *', () => {
+  console.log('Running scheduled backup at 10 PM...');
+  runBackup();
+});
 
 app.get('/backup', (req, res) => {
   runBackup();
