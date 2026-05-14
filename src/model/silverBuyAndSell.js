@@ -48,7 +48,7 @@ const BuyAndSellLedgerSchema = new Schema({
         type : ObjectId,
         ref : 'User'
     },
-}, { collection: 'GoldBuyAndSell',timestamps: true });
+}, { collection: 'SilverBuyAndSell',timestamps: true });
 BuyAndSellLedgerSchema.pre("save", async function (next) {
   try {
 
@@ -61,7 +61,7 @@ BuyAndSellLedgerSchema.pre("save", async function (next) {
     if (!shop) {
       return next(new Error("Shop not found"));
     }
-    let seqName = `BS-LEG-${shop.shortName}`;
+    let seqName = `SBS-LEG-${shop.shortName}`;
     const sequence = await getNextSequenceValue(seqName);
 
     this.invoiceNumber = seqName+"-"+sequence;
@@ -72,5 +72,5 @@ BuyAndSellLedgerSchema.pre("save", async function (next) {
     next(error);
   }
 });
-const BuyAndSellLedger = mongoose.model("GoldBuyAndSell", BuyAndSellLedgerSchema);
-module.exports = BuyAndSellLedger;
+const SilverBuyAndSellLedger = mongoose.model("SilverBuyAndSell", BuyAndSellLedgerSchema);
+module.exports = SilverBuyAndSellLedger;

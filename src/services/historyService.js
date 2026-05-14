@@ -1,7 +1,7 @@
 
 const { default: mongoose } = require('mongoose');
 const { StatusEnum } = require('../constants/user.constant');
-const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank, PurchaseLedger, AdjustmentLedger, BuyAndSellLedger } = require('../model');
+const { Balance, LedgerHistory, Ledger, LedgerSnapshot, Bank, PurchaseLedger, AdjustmentLedger, BuyAndSellLedger, SilverBuyAndSellLedger } = require('../model');
 const { getAllBanks } = require('../controller/bank.controller');
 
 async function createLedgerHistory({ ledger, entries, userId, beforeBalances,action,session }) {
@@ -492,6 +492,117 @@ const getBuyAndSellLedgerStatement = async (req) => {
     console.log(e);
   }
 };
+const getSilverBuyAndSellLedgerStatement = async (req) => {
+  try {
+    let { fromDate, toDate, invoiceNumber, customer } = req.query;
+
+    if (!toDate) {
+      toDate = new Date().toLocaleDateString("en-CA");
+    }
+
+    if (!fromDate) {
+      const d = new Date(toDate);
+      d.setDate(d.getDate() - 6);
+      fromDate = d.toLocaleDateString("en-CA");
+    }
+
+    let query = {
+      status: { $ne: StatusEnum.DELETED }
+    };
+
+    if (req.user.role === 'EMPLOYEE') {
+      query.shop = new mongoose.Types.ObjectId(String(req.user.shop));
+    }
+
+    query.date = { $gte: fromDate, $lte: toDate };
+
+    if (invoiceNumber) {
+      query.invoiceNumber = { $regex: invoiceNumber, $options: "i" };
+    }
+
+    // if (customer) {
+    //   query.name = { $regex: customer, $options: "i" };
+    // }
+    if (customer) {
+          query.custId = new mongoose.Types.ObjectId(String(customer));;
+        }
+
+    const ledgers = await SilverBuyAndSellLedger.find(query)
+      .sort({ date: 1, createdAt: 1 })
+      .lean();
+
+    const rows = [];
+    let totals = resetTotals();
+    const allBanks = await getAllBanksCodeList();
+    for (let i = 0; i < ledgers.length; i++) {
+      const ledger = ledgers[i];
+      const dateKey = ledger.date;
+
+
+      let entryTotals = resetTotals();
+
+      for (const entry of ledger.entries) {
+        updateTotals(entryTotals, entry);
+        updateTotals(totals, entry);
+      }
+      // ======================
+      // NORMAL ROW
+      // ======================
+      rows.push({
+        isTotal: false,
+        date: dateKey,
+        id: ledger._id,
+        invoiceNumber: ledger.invoiceNumber,
+        customer: ledger.name,
+        description: ledger.description,
+        isBooking : ledger.isBooking,
+        cash: entryTotals.cash,
+        gold: entryTotals.gold,
+        silver: entryTotals.silver,
+        ttb: entryTotals.ttb,
+        silver_bar: entryTotals.silver_bar,
+        bank: entryTotals.bank,
+
+        // flat dynamic banks
+        ...Object.fromEntries(
+          Object.entries(entryTotals)
+            .filter(([k]) => k.startsWith("bank_"))
+        )
+      });
+
+    }
+    if(ledgers.length > 0){
+      rows.push({
+                    isTotal: true,
+                    date: '',
+                    customer: '',
+                    description: 'TOTAL',
+
+                    cash: { ...totals.cash },
+                    gold: { ...totals.gold },
+                    bank: { ...totals.bank },
+                    ttb: { ...totals.ttb},
+                    silver: { ...totals.silver },
+                    silver_bar: { ...totals.silver_bar },
+
+                    ...Object.fromEntries(
+                        allBanks.map(k => [
+                          k,
+                          {
+                            credit: totals[k]?.credit || 0,
+                            debit: totals[k]?.debit || 0
+                          }
+                        ])
+                      )
+                  });
+    }
+    
+    return rows;
+
+  } catch (e) {
+    console.log(e);
+  }
+};
 const getAdjustmentLedgerStatement = async (req) => {
   try {
 
@@ -711,5 +822,6 @@ module.exports = {
   getAllBanksCodeList,
   updateTotals,
   getAdjustmentLedgerStatement,
-  getBuyAndSellLedgerStatement
+  getBuyAndSellLedgerStatement,
+  getSilverBuyAndSellLedgerStatement
 };
