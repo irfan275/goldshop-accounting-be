@@ -388,7 +388,7 @@ const getPurchaseLedgerStatement = async (req) => {
 };
 const getBuyAndSellLedgerStatement = async (req) => {
   try {
-    let { fromDate, toDate, invoiceNumber, customer } = req.query;
+    let { fromDate, toDate, invoiceNumber, customer,bookingFilter } = req.query;
 
     if (!toDate) {
       toDate = new Date().toLocaleDateString("en-CA");
@@ -407,7 +407,12 @@ const getBuyAndSellLedgerStatement = async (req) => {
     if (req.user.role === 'EMPLOYEE') {
       query.shop = new mongoose.Types.ObjectId(String(req.user.shop));
     }
-
+// booking filter
+    if (bookingFilter === "booking") {
+      query.isBooking = true;
+    } else if (bookingFilter === "non-booking") {
+      query.isBooking = { $ne: true };
+    }
     query.date = { $gte: fromDate, $lte: toDate };
 
     if (invoiceNumber) {
@@ -499,7 +504,7 @@ const getBuyAndSellLedgerStatement = async (req) => {
 };
 const getSilverBuyAndSellLedgerStatement = async (req) => {
   try {
-    let { fromDate, toDate, invoiceNumber, customer } = req.query;
+    let { fromDate, toDate, invoiceNumber, customer,bookingFilter } = req.query;
 
     if (!toDate) {
       toDate = new Date().toLocaleDateString("en-CA");
@@ -518,7 +523,12 @@ const getSilverBuyAndSellLedgerStatement = async (req) => {
     if (req.user.role === 'EMPLOYEE') {
       query.shop = new mongoose.Types.ObjectId(String(req.user.shop));
     }
-
+// booking filter
+    if (bookingFilter === "booking") {
+      query.isBooking = true;
+    } else if (bookingFilter === "non-booking") {
+      query.isBooking = { $ne: true };
+    }
     query.date = { $gte: fromDate, $lte: toDate };
 
     if (invoiceNumber) {
